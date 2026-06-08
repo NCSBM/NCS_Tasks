@@ -353,12 +353,7 @@ const DIRECTIONS={
   normal:{label:'Normal Task',icon:'📝',sub:'Internal / regular task',cls:'dir-no'},
 };
 
-const USERS=[
-  {id:'u1',fullName:'Bassem Medhat',email:'bmedhat@next-cs.net',username:'bassem',role:'global_admin',isActive:true,avatar:'BM',lastLogin:null,departments:[],password:'ncs@2026'},
-  {id:'u2',fullName:'Ismail Yahya',email:'lyahya@next-cs.net',username:'Ismail',role:'co_admin',isActive:true,avatar:'IY',lastLogin:null,departments:[],password:'ncs@2026'},
-  {id:'u3',fullName:'Adham Said',email:'Asaid@next-cs.net',username:'Adham',role:'member',isActive:true,avatar:'A',lastLogin:null,departments:['finance'],password:'ncs@2026'},
-  {id:'u4',fullName:'Moaz Said',email:'msaid@next-cs.net',username:'Moaz Said',role:'member',isActive:true,avatar:'MS',lastLogin:null,departments:['finance'],password:'ncs@2026'},
-];
+const USERS=[];
 // Helper: build dept phases map
 const mkDeptPhases=(depts,phaseFn)=>{
   const dp={};
@@ -779,6 +774,86 @@ const DirectionPicker=({value,onChange})=>React.createElement('div',null,
   )
 );
 
+// SETUP WIZARD — shown when no users exist
+const SetupWizard=({onSetup})=>{
+  const [form,setForm]=useState({fullName:'',email:'',username:'',password:'',confirm:''});
+  const [showPw,setShowPw]=useState(false);
+  const [err,setErr]=useState('');
+  const [done,setDone]=useState(false);
+
+  const submit=e=>{
+    e.preventDefault();setErr('');
+    if(!form.fullName||!form.email||!form.username||!form.password)return setErr('All fields are required.');
+    if(form.password.length<6)return setErr('Password must be at least 6 characters.');
+    if(form.password!==form.confirm)return setErr('Passwords do not match.');
+    const ini=form.fullName.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
+    const adminUser={id:uid(),fullName:form.fullName,email:form.email.toLowerCase().trim(),username:form.username.trim(),role:'global_admin',isActive:true,avatar:ini,lastLogin:null,departments:[],password:form.password};
+    setDone(true);
+    setTimeout(()=>onSetup(adminUser),1200);
+  };
+
+  return React.createElement('div',{className:'lbg'},
+    React.createElement('div',{className:'lc fi',style:{maxWidth:480}},
+      // Logo
+      React.createElement('div',{className:'llg'},
+        React.createElement('div',{className:'liw'},
+          React.createElement('div',{style:{background:'var(--dk)',padding:'10px 16px',borderRadius:14,display:'flex',alignItems:'center',gap:12}},
+            React.createElement(NCSLogo,{sz:32}),
+            React.createElement('div',{style:{borderLeft:'2px solid #f5a62335',paddingLeft:12}},
+              React.createElement('div',{style:{fontFamily:'var(--fd)',fontWeight:800,fontSize:20,color:'#f5a623',lineHeight:1}},'NCS'),
+              React.createElement('div',{style:{fontSize:9,color:'#94a3b8',letterSpacing:'.06em',marginTop:2}},'NEXT CONSULTING SOLUTIONS')
+            )
+          )
+        ),
+        React.createElement('div',{className:'lti',style:{marginTop:12}},'Initial Setup'),
+        React.createElement('div',{className:'lsu'},'Create your Global Admin account to get started')
+      ),
+      // Setup banner
+      React.createElement('div',{style:{background:'linear-gradient(135deg,#fff7ed,#fef3c7)',border:'2px solid #f5a623',borderRadius:12,padding:'12px 16px',marginBottom:20,display:'flex',alignItems:'center',gap:10}},
+        React.createElement('span',{style:{fontSize:22}},'⚙️'),
+        React.createElement('div',null,
+          React.createElement('div',{style:{fontSize:13,fontWeight:700,color:'#92400e'}},'First Time Setup'),
+          React.createElement('div',{style:{fontSize:12,color:'#a16207',marginTop:2}},'No users found. Set up your admin account below.')
+        )
+      ),
+      done
+        ? React.createElement('div',{style:{textAlign:'center',padding:'20px 0'}},
+            React.createElement('div',{style:{fontSize:40,marginBottom:10}},'✅'),
+            React.createElement('div',{style:{fontSize:16,fontWeight:700,color:'#059669'}},`Welcome, ${form.fullName}!`),
+            React.createElement('div',{style:{fontSize:13,color:'var(--t3)',marginTop:4}},'Setting up your workspace...')
+          )
+        : React.createElement('form',{onSubmit:submit},
+            err&&React.createElement('div',{className:'eb',style:{marginBottom:14}},I.alert,React.createElement('span',null,err)),
+            React.createElement('div',{className:'frw',style:{marginBottom:12}},
+              React.createElement(Fld,{lbl:'Full Name *',ch:
+                React.createElement('input',{className:'ip',type:'text',placeholder:'e.g. Bassem Medhat',value:form.fullName,onChange:e=>setForm({...form,fullName:e.target.value}),required:true,autoFocus:true})
+              })
+            ),
+            React.createElement('div',{className:'fgr',style:{marginBottom:12}},
+              React.createElement(Fld,{lbl:'Email *',ch:
+                React.createElement('input',{className:'ip',type:'email',placeholder:'you@ncs.com',value:form.email,onChange:e=>setForm({...form,email:e.target.value}),required:true})
+              }),
+              React.createElement(Fld,{lbl:'Username *',ch:
+                React.createElement('input',{className:'ip',type:'text',placeholder:'e.g. bassem',value:form.username,onChange:e=>setForm({...form,username:e.target.value}),required:true})
+              })
+            ),
+            React.createElement('div',{className:'fgr',style:{marginBottom:20}},
+              React.createElement(Fld,{lbl:'Password *',ch:
+                React.createElement('div',{className:'pw'},
+                  React.createElement('input',{className:'ip',style:{paddingRight:40},type:showPw?'text':'password',placeholder:'Min 6 characters',value:form.password,onChange:e=>setForm({...form,password:e.target.value}),required:true}),
+                  React.createElement('button',{type:'button',className:'pt2',onClick:()=>setShowPw(v=>!v)},showPw?I.eyeOff:I.eye)
+                )
+              }),
+              React.createElement(Fld,{lbl:'Confirm Password *',ch:
+                React.createElement('input',{className:'ip',type:'password',placeholder:'Repeat password',value:form.confirm,onChange:e=>setForm({...form,confirm:e.target.value}),required:true})
+              })
+            ),
+            React.createElement(Btn,{type:'submit',v:'pr',sz:'lg',ch:'⚙️ Create Admin Account & Start',dis:!form.fullName||!form.email||!form.username||!form.password||!form.confirm})
+          )
+    )
+  );
+};
+
 // LOGIN
 const Login=({onLogin,allUsers})=>{
   const [id,setId]=useState('');const [pw,setPw]=useState('');
@@ -788,7 +863,12 @@ const Login=({onLogin,allUsers})=>{
     setTimeout(()=>{
       const userList=(typeof allUsers!=='undefined'&&allUsers&&allUsers.length)?allUsers:USERS;
       const effectiveList=userList.length>0?userList:USERS;
-      const found=effectiveList.find(u=>u.isActive&&(u.username===id.toLowerCase().trim()||u.email===id.toLowerCase().trim()));
+      const idLower=id.toLowerCase().trim();
+      const found=effectiveList.find(u=>u.isActive&&(
+        u.username.toLowerCase()===idLower||
+        u.email.toLowerCase()===idLower||
+        u.fullName.toLowerCase()===idLower
+      ));
       if(found){
         const validPw=found.password||'password123';
         if(pw===validPw){onLogin(found);}
@@ -2678,7 +2758,7 @@ const App=()=>{
   const [sbOpen,setSbOpen]=useState(false);
   // Persist state in localStorage so data survives refresh/re-login
   // Version check — clear old demo data
-  const APP_VERSION='v1.1-live';
+  const APP_VERSION='v2.0-setup';
   if(localStorage.getItem('ncsflow_version')!==APP_VERSION){
     ['tasks','projects','users'].forEach(k=>localStorage.removeItem('ncsflow_'+k));
     localStorage.setItem('ncsflow_version',APP_VERSION);
@@ -2688,9 +2768,7 @@ const App=()=>{
 
   const loadUsers=()=>{
     const saved=loadLS('users',null);
-    if(!saved||saved.length===0)return USERS;
-    const hasAdmin=saved.find(u=>u.id==='u1'||u.username==='bassem');
-    if(!hasAdmin)return[...USERS,...saved];
+    if(!saved||saved.length===0)return [];
     return saved;
   };
 
@@ -2705,6 +2783,20 @@ const App=()=>{
   const [taskTypes,setTaskTypesRaw]=useState(()=>loadLS('tasktypes',TASK_TYPES_DEFAULT));
   const setTaskTypes=v=>setTaskTypesRaw(prev=>{const next=typeof v==='function'?v(prev):v;saveLS('tasktypes',next);return next;});
   const ctx={tasks,setTasks,projects,setProjects,users,setUsers,taskTypes,setTaskTypes};
+
+  // First time setup — no users at all
+  if(users.length===0){
+    return React.createElement(Ctx.Provider,{value:ctx},
+      React.createElement(SetupWizard,{onSetup:adminUser=>{
+        const newUsers=[adminUser];
+        setUsers(newUsers);
+        saveLS('users',newUsers);
+        setUser(adminUser);
+        setScreen('dashboard');
+      }})
+    );
+  }
+
   if(!user)return React.createElement(Ctx.Provider,{value:ctx},React.createElement(Login,{onLogin:u=>{
     setUser(u);
     // Support → go to submit ticket; others → dashboard
