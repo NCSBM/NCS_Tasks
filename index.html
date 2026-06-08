@@ -1102,7 +1102,7 @@ const Topbar=({user,onMenu,activeDept=''})=>{
     // Support sees ALL their tickets regardless of dept
     if(user.role==='support')return true;
     // If dept selected AND task has a dept → must match
-    if(activeDept&&t.department&&t.department!==activeDept)return false;
+    if(activeDept&&(!t.department||t.department!==activeDept))return false;
     return true;
   });
   const als=mine.filter(t=>['ov','td'].includes(dStat(t.dueDate,t.status)));
@@ -1130,8 +1130,10 @@ const Dashboard=({user,setScreen,setSelTask,activeDept=''})=>{
     if(!_vpids.has(t.projectId))return false;
     // Support sees ALL their tickets regardless of dept
     if(user.role==='support')return true;
-    // If dept selected AND task has a dept → must match
-    if(activeDept&&t.department&&t.department!==activeDept)return false;
+    // If dept selected: task must explicitly belong to that dept
+    if(activeDept){
+      if(!t.department||t.department!==activeDept)return false;
+    }
     return true;
   });
   const cnt={to_do:0,in_progress:0,under_review:0,completed:0};mine.forEach(t=>cnt[t.status]=(cnt[t.status]||0)+1);
@@ -1175,7 +1177,7 @@ const Tasks=({user,selTask,setSelTask,initialProjFilter,clearProjFilter,activeDe
     // Support sees ALL their tickets regardless of dept
     if(user.role==='support')return true;
     // If dept selected AND task has a dept → must match
-    if(activeDept&&t.department&&t.department!==activeDept)return false;
+    if(activeDept&&(!t.department||t.department!==activeDept))return false;
     return true;
   });
   // Phase filter: check if task's project has the selected phase in-progress or done
@@ -1970,7 +1972,7 @@ const CompletedScreen=({user,activeDept=''})=>{
   const mine=tasks.filter(t=>{
     if(t.status!=='completed')return false;
     if(!_cpids.has(t.projectId))return false;
-    if(activeDept&&t.department&&t.department!==activeDept)return false;
+    if(activeDept&&(!t.department||t.department!==activeDept))return false;
     if(user.role==='team_member')return t.assignedTo===user.id;
     if(user.role==='co_admin')return t.assignedTo===user.id||true; // co_admin sees all in visible projects
     return true;
