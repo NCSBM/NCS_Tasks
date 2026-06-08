@@ -6,6 +6,9 @@
 <title>FinanceFlow — NCS Finance Department</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap"/>
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
@@ -246,6 +249,26 @@ nav.snav{flex:1;padding:12px 10px;display:flex;flex-direction:column;gap:2px;ove
 <div id="root"></div>
 <script type="text/babel">
 const {useState,useEffect,useRef,createContext,useContext}=React;
+
+// ─── FIREBASE CONFIG ─────────────────────────────────────────────────────────
+const firebaseConfig={
+  apiKey:"AIzaSyAnYFqrcUYd9fE_ue1FyBZix8OiW8dUegA",
+  authDomain:"ncs-tasks.firebaseapp.com",
+  databaseURL:"https://ncs-tasks-default-rtdb.firebaseio.com",
+  projectId:"ncs-tasks",
+  storageBucket:"ncs-tasks.firebasestorage.app",
+  messagingSenderId:"530424257347",
+  appId:"1:530424257347:web:361b97bfc3c073377c2df6"
+};
+firebase.initializeApp(firebaseConfig);
+const db=firebase.database();
+
+// DB helpers
+const dbGet=path=>db.ref(path).once('value').then(s=>s.val());
+const dbSet=(path,val)=>db.ref(path).set(val);
+const dbOn=(path,cb)=>{const ref=db.ref(path);ref.on('value',s=>cb(s.val()));return()=>ref.off();};
+// ─────────────────────────────────────────────────────────────────────────────
+
 const Ctx=createContext(null);
 
 // Portal: renders children directly into document.body, escaping any overflow:hidden parent
@@ -2756,33 +2779,45 @@ const App=()=>{
   const [ovLCS,setOvLCS]=useState(null);
   const [activeDept,setActiveDept]=useState('');
   const [sbOpen,setSbOpen]=useState(false);
-  // Persist state in localStorage so data survives refresh/re-login
-  // Version check — clear old demo data
-  const APP_VERSION='v2.0-setup';
-  if(localStorage.getItem('ncsflow_version')!==APP_VERSION){
-    ['tasks','projects','users'].forEach(k=>localStorage.removeItem('ncsflow_'+k));
-    localStorage.setItem('ncsflow_version',APP_VERSION);
-  }
-  const loadLS=(key,fallback)=>{try{const v=localStorage.getItem('ncsflow_'+key);return v?JSON.parse(v):fallback;}catch{return fallback;}};
-  const saveLS=(key,val)=>{try{localStorage.setItem('ncsflow_'+key,JSON.stringify(val));}catch{}};
+  // ── Firebase realtime sync ──────────────────────────────────────────────────
+  const [tasks,setTasksRaw]=useState([]);
+  const [projects,setProjectsRaw]=useState([]);
+  const [users,setUsersRaw]=useState([]);
+  const [taskTypes,setTaskTypesRaw]=useState(TASK_TYPES_DEFAULT);
+  const [dbReady,setDbReady]=useState(false);
 
-  const loadUsers=()=>{
-    const saved=loadLS('users',null);
-    if(!saved||saved.length===0)return [];
-    return saved;
-  };
+  // Save helpers → write to Firebase
+  const saveFB=(key,val)=>dbSet('ncsflow/'+key, val||null);
 
-  const [tasks,setTasksRaw]=useState(()=>loadLS('tasks',TASKS));
-  const [projects,setProjectsRaw]=useState(()=>loadLS('projects',PROJECTS));
-  const [users,setUsersRaw]=useState(()=>loadUsers());
-
-  // Wrap setters to also persist
-  const setTasks=v=>setTasksRaw(prev=>{const next=typeof v==='function'?v(prev):v;saveLS('tasks',next);return next;});
-  const setProjects=v=>setProjectsRaw(prev=>{const next=typeof v==='function'?v(prev):v;saveLS('projects',next);return next;});
-  const setUsers=v=>setUsersRaw(prev=>{const next=typeof v==='function'?v(prev):v;saveLS('users',next);return next;});
-  const [taskTypes,setTaskTypesRaw]=useState(()=>loadLS('tasktypes',TASK_TYPES_DEFAULT));
-  const setTaskTypes=v=>setTaskTypesRaw(prev=>{const next=typeof v==='function'?v(prev):v;saveLS('tasktypes',next);return next;});
+  // Setters: update state + push to Firebase
+  const setTasks=v=>setTasksRaw(prev=>{const next=typeof v==='function'?v(prev):v;saveFB('tasks',next);return next;});
+  const setProjects=v=>setProjectsRaw(prev=>{const next=typeof v==='function'?v(prev):v;saveFB('projects',next);return next;});
+  const setUsers=v=>setUsersRaw(prev=>{const next=typeof v==='function'?v(prev):v;saveFB('users',next);return next;});
+  const setTaskTypes=v=>setTaskTypesRaw(prev=>{const next=typeof v==='function'?v(prev):v;saveFB('tasktypes',next);return next;});
   const ctx={tasks,setTasks,projects,setProjects,users,setUsers,taskTypes,setTaskTypes};
+
+  // Load all data from Firebase on mount — realtime listeners
+  useEffect(()=>{
+    const unsubs=[];
+    unsubs.push(dbOn('ncsflow/tasks',   v=>{setTasksRaw(Array.isArray(v)?v:(v?Object.values(v):[]));setDbReady(true);}));
+    unsubs.push(dbOn('ncsflow/projects',v=>{setProjectsRaw(Array.isArray(v)?v:(v?Object.values(v):[]));} ));
+    unsubs.push(dbOn('ncsflow/users',   v=>{setUsersRaw(Array.isArray(v)?v:(v?Object.values(v):[]));} ));
+    unsubs.push(dbOn('ncsflow/tasktypes',v=>{if(v)setTaskTypesRaw(Array.isArray(v)?v:Object.values(v));}));
+    return()=>unsubs.forEach(u=>u());
+  },[]);
+
+  // Show loading while Firebase connects
+  if(!dbReady)return React.createElement('div',{style:{
+    minHeight:'100vh',background:'var(--bg)',display:'flex',alignItems:'center',
+    justifyContent:'center',flexDirection:'column',gap:16
+  }},
+    React.createElement('div',{style:{background:'var(--dk)',padding:'14px 20px',borderRadius:16,display:'flex',alignItems:'center',gap:12}},
+      React.createElement(NCSLogo,{sz:28}),
+      React.createElement('div',{style:{fontFamily:'var(--fd)',fontWeight:800,fontSize:18,color:'#f5a623'}},'NCS Flow')
+    ),
+    React.createElement('div',{className:'sp',style:{width:28,height:28,borderWidth:3}}),
+    React.createElement('div',{style:{fontSize:13,color:'var(--t3)',fontWeight:500}},'Connecting to database...')
+  );
 
   // First time setup — no users at all
   if(users.length===0){
@@ -2790,7 +2825,6 @@ const App=()=>{
       React.createElement(SetupWizard,{onSetup:adminUser=>{
         const newUsers=[adminUser];
         setUsers(newUsers);
-        saveLS('users',newUsers);
         setUser(adminUser);
         setScreen('dashboard');
       }})
