@@ -728,9 +728,45 @@ const TaskPanel=({task:init,onClose,onUpdate,user})=>{
                   ? React.createElement('div',{style:{display:'flex',alignItems:'center',gap:9}},React.createElement(Av,{user:asgn,sz:'s'}),React.createElement('span',{style:{fontSize:13.5,fontWeight:600}},asgn.fullName))
                   : React.createElement('span',{style:{color:'var(--t3)'}},'Unassigned')
             ),
-            React.createElement('div',{className:'dfl'},React.createElement('label',null,'Due Date'),React.createElement('span',{style:{fontSize:13.5,fontWeight:700}},dl)),
+            React.createElement('div',{className:'dfl'},
+              React.createElement('label',null,'Due Date'),
+              (user.role==='global_admin'||user.role==='admin')
+                ? React.createElement('input',{
+                    type:'date',
+                    className:'ip',
+                    value:task.dueDate||'',
+                    onChange:e=>{
+                      const now=T();
+                      const log={id:uid(),performedBy:user.id,action:'status_changed',fieldChanged:'dueDate',oldValue:task.dueDate||'',newValue:e.target.value,performedAt:now};
+                      upd({...task,dueDate:e.target.value,auditLog:[...(task.auditLog||[]),log]});
+                    },
+                    style:{colorScheme:'light',marginTop:4,fontSize:13}
+                  })
+                : React.createElement('span',{style:{fontSize:13.5,fontWeight:700}},dl)
+            ),
             React.createElement('div',{className:'dfl'},React.createElement('label',null,'Task Direction'),dir?React.createElement('span',{className:dir.cls},dir.icon,' ',dir.label):React.createElement('span',{style:{color:'var(--t3)'}}, '—')),
             React.createElement('div',{className:'dfl'},React.createElement('label',null,'Priority'),React.createElement('span',{style:{fontSize:13,fontWeight:700,color:pri.d}},'▲'.repeat(task.priority),' ',pri.l)),
+            React.createElement('div',{className:'dfl'},
+              React.createElement('label',null,'Department'),
+              user.role==='global_admin'
+                ? React.createElement('select',{
+                    className:'ip fs',
+                    style:{width:'100%',marginTop:4,fontFamily:'var(--fb)',fontSize:13,
+                      border:!task.department?'2px solid #f59e0b':'',
+                      background:!task.department?'#fffbeb':''
+                    },
+                    value:task.department||'',
+                    onChange:e=>{
+                      const now=T();
+                      const log={id:uid(),performedBy:user.id,action:'status_changed',fieldChanged:'department',oldValue:task.department||'',newValue:e.target.value,performedAt:now};
+                      upd({...task,department:e.target.value,auditLog:[...(task.auditLog||[]),log]});
+                    }
+                  },
+                    React.createElement('option',{value:''},'⚠️ No department — assign one'),
+                    DEPARTMENTS.map(d=>React.createElement('option',{key:d.id,value:d.id},d.icon+' '+d.name))
+                  )
+                : (()=>{const td2=DEPARTMENTS.find(d=>d.id===task.department);return td2?React.createElement('span',{style:{color:td2.color,fontWeight:600}},td2.icon+' '+td2.name):React.createElement('span',{style:{color:'#f59e0b',fontWeight:600}},'⚠️ No department');})()
+            ),
             React.createElement('div',{className:'dfl'},React.createElement('label',null,'Created'),React.createElement('span',{style:{fontSize:13,color:'var(--t2)'}},fmtDate(task.createdAt))),
             task.completedAt&&React.createElement('div',{className:'dfl'},React.createElement('label',null,'Completed'),React.createElement('span',{style:{fontSize:13,color:'#059669',fontWeight:600}},fmtDT(task.completedAt))),
             React.createElement('div',{className:'dfl',style:{gridColumn:'1/-1'}},React.createElement('label',null,'Project'),React.createElement('span',{style:{fontSize:13,fontFamily:'var(--fm)'}},prj?.code||'—'))
@@ -1172,7 +1208,7 @@ const Tasks=({user,selTask,setSelTask,initialProjFilter,clearProjFilter,activeDe
   // Sync initialProjFilter when it changes (from View Tasks button)
   React.useEffect(()=>{if(initialProjFilter){setF(prev=>({...prev,proj:initialProjFilter}));if(clearProjFilter)clearProjFilter();}}, [initialProjFilter]);
   const [showNew,setShowNew]=useState(false);
-  const [form,setForm]=useState({title:'',desc:'',typeId:'',projId:'',priority:'2',assignee:'',due:'',direction:'normal'});
+  const [form,setForm]=useState({title:'',desc:'',typeId:'',projId:'',priority:'2',assignee:'',due:'',direction:'normal',dept:activeDept||''});
   const _vpids=new Set(getVisibleProjects(user,projects,activeDept||'').map(p=>p.id));
   const mine=(user.role==='team_member'||user.role==='support'?tasks.filter(t=>t.createdBy===user.id||t.assignedTo===user.id):tasks).filter(t=>{
     if(t.status==='completed')return false;
@@ -1196,25 +1232,42 @@ const Tasks=({user,selTask,setSelTask,initialProjFilter,clearProjFilter,activeDe
   const upd=u=>setTasks(prev=>prev.map(t=>t.id===u.id?u:t));
   const create=()=>{
     if(!form.title||!form.projId)return;
+    if(!activeDept&&!form.dept)return; // dept required when in All view
     const now=T();
     const assignedTo=user.role==='team_member'?user.id:(form.assignee||'');
-    const t={id:uid(),title:form.title,description:form.desc,taskTypeId:form.typeId,projectId:form.projId,direction:form.direction||'normal',status:'to_do',priority:Number(form.priority),assignedTo,createdBy:user.id,dueDate:form.due,createdAt:now,department:activeDept||'',comments:[],attachments:[],auditLog:[{id:uid(),performedBy:user.id,action:'created',performedAt:now}],dailyComments:{}};
-    setTasks(prev=>[t,...prev]);setShowNew(false);setForm({title:'',desc:'',typeId:'',projId:'',priority:'2',assignee:'',due:'',direction:'normal'});
+    const t={id:uid(),title:form.title,description:form.desc,taskTypeId:form.typeId,projectId:form.projId,direction:form.direction||'normal',status:'to_do',priority:Number(form.priority),assignedTo,createdBy:user.id,dueDate:form.due,createdAt:now,department:activeDept||form.dept||'',comments:[],attachments:[],auditLog:[{id:uid(),performedBy:user.id,action:'created',performedAt:now}],dailyComments:{}};
+    setTasks(prev=>[t,...prev]);setShowNew(false);setForm({title:'',desc:'',typeId:'',projId:'',priority:'2',assignee:'',due:'',direction:'normal',dept:activeDept||''});
   };
-  const openNew=()=>{setForm({title:'',desc:'',typeId:'',projId:'',priority:'2',assignee:'',due:'',direction:user.role==='support'?'email':'normal'});setShowNew(true)};
+  const openNew=()=>{setForm({title:'',desc:'',typeId:'',projId:'',priority:'2',assignee:'',due:'',direction:user.role==='support'?'email':'normal',dept:activeDept||''});setShowNew(true)};
 
   const newTaskForm=React.createElement('div',null,
     React.createElement('div',{className:'frw'},React.createElement(Fld,{lbl:'Task Title *',ch:React.createElement('input',{className:'ip',type:'text',placeholder:'e.g. Year-End Closing — FlyAkeed',value:form.title,onChange:e=>setForm({...form,title:e.target.value})})})),
-    activeDept&&DEPARTMENTS.find(d=>d.id===activeDept)&&React.createElement('div',{style:{
-      background:DEPARTMENTS.find(d=>d.id===activeDept).color+'12',
-      border:'1.5px solid '+DEPARTMENTS.find(d=>d.id===activeDept).color+'35',
-      borderRadius:8,padding:'8px 14px',marginBottom:8,
-      fontSize:12,color:DEPARTMENTS.find(d=>d.id===activeDept).color,fontWeight:600,
-      display:'flex',alignItems:'center',gap:6
-    }},
-      DEPARTMENTS.find(d=>d.id===activeDept).icon,
-      ' Creating task in: ',DEPARTMENTS.find(d=>d.id===activeDept).name,' department'
-    ),
+    activeDept&&DEPARTMENTS.find(d=>d.id===activeDept)
+      // Already in a dept → show badge
+      ? React.createElement('div',{style:{
+          background:DEPARTMENTS.find(d=>d.id===activeDept).color+'12',
+          border:'1.5px solid '+DEPARTMENTS.find(d=>d.id===activeDept).color+'35',
+          borderRadius:8,padding:'8px 14px',marginBottom:8,
+          fontSize:12,color:DEPARTMENTS.find(d=>d.id===activeDept).color,fontWeight:600,
+          display:'flex',alignItems:'center',gap:6
+        }},
+        DEPARTMENTS.find(d=>d.id===activeDept).icon,
+        ' Creating task in: ',DEPARTMENTS.find(d=>d.id===activeDept).name,' department'
+      )
+      // In "All Departments" view → must pick a dept
+      : React.createElement('div',{className:'frw',style:{marginBottom:8}},
+          React.createElement(Fld,{lbl:'Department * (required)',ch:
+            React.createElement('select',{
+              className:'ip fs',
+              style:{width:'100%',border:!form.dept?'2px solid #f59e0b':'',background:!form.dept?'#fffbeb':''},
+              value:form.dept||'',
+              onChange:e=>setForm({...form,dept:e.target.value})
+            },
+              React.createElement('option',{value:''},'⚠️ Select department…'),
+              DEPARTMENTS.map(d=>React.createElement('option',{key:d.id,value:d.id},d.icon+' '+d.name))
+            )
+          })
+        ),
     React.createElement('div',{className:'frw'},React.createElement(Fld,{lbl:'Description',ch:React.createElement('textarea',{className:'ip',rows:2,placeholder:'Scope and details…',value:form.desc,onChange:e=>setForm({...form,desc:e.target.value}),style:{resize:'vertical'}})})),
     React.createElement('div',{className:'fgr',style:{marginBottom:14}},
       React.createElement(Fld,{lbl:'Project *',ch:React.createElement('select',{className:'ip fs',style:{width:'100%'},value:form.projId,onChange:e=>setForm({...form,projId:e.target.value})},React.createElement('option',{value:''},'Select project…'),getVisibleProjects(user,projects,activeDept).filter(p=>p.status==='active').map(p=>React.createElement('option',{key:p.id,value:p.id},p.name)))}),
@@ -1235,7 +1288,7 @@ const Tasks=({user,selTask,setSelTask,initialProjFilter,clearProjFilter,activeDe
       React.createElement(DirectionPicker,{value:form.direction,onChange:v=>setForm({...form,direction:v})})
     ),
     React.createElement('div',{style:{display:'flex',gap:10}},
-      React.createElement(Btn,{v:'pr',sz:'md',ch:React.createElement(React.Fragment,null,I.plus,'\u00a0Create Task'),onClick:create,dis:!form.title||!form.projId}),
+      React.createElement(Btn,{v:'pr',sz:'md',ch:React.createElement(React.Fragment,null,I.plus,'\u00a0Create Task'),onClick:create,dis:!form.title||!form.projId||(!activeDept&&!form.dept)}),
       React.createElement(Btn,{v:'se',sz:'md',ch:'Cancel',onClick:()=>setShowNew(false)})
     )
   );
