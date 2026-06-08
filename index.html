@@ -2125,8 +2125,8 @@ const OverviewScreen=({user,setScreen,onOpenLCS,activeDept=''})=>{
           else if(prev&&prev.completionDate)daysInPhase=Math.floor((new Date()-new Date(prev.completionDate))/86400000);
         }
       }
-      const openTasks=tasks.filter(t=>t.projectId===p.id&&t.status!=='completed').length;
-      const overdueTasks=tasks.filter(t=>t.projectId===p.id&&t.status!=='completed'&&t.dueDate&&new Date(t.dueDate)<new Date(new Date().setHours(0,0,0,0))).length;
+      const openTasks=tasks.filter(t=>t.projectId===p.id&&t.status!=='completed'&&t.department===deptId).length;
+      const overdueTasks=tasks.filter(t=>t.projectId===p.id&&t.status!=='completed'&&t.department===deptId&&t.dueDate&&new Date(t.dueDate)<new Date(new Date().setHours(0,0,0,0))).length;
       return{deptId,dept,phs,done,total,pct,wipLCS,mainPhase,mainCol,daysInPhase,openTasks,overdueTasks};
     });
   };
