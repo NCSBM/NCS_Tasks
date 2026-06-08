@@ -2813,9 +2813,10 @@ const App=()=>{
   const [users,setUsersRaw]=useState([]);
   const [taskTypes,setTaskTypesRaw]=useState(TASK_TYPES_DEFAULT);
   const [dbReady,setDbReady]=useState(false);
+  const dbReadyRef=useRef(false);
 
-  // Save helpers → write to Firebase
-  const saveFB=(key,val)=>dbSet('ncsflow/'+key, val||null);
+  // Save helpers → write to Firebase ONLY after initial load
+  const saveFB=(key,val)=>{if(dbReadyRef.current)dbSet('ncsflow/'+key,val||null);};
 
   // Setters: update state + push to Firebase
   const setTasks=v=>setTasksRaw(prev=>{const next=typeof v==='function'?v(prev):v;saveFB('tasks',next);return next;});
@@ -2827,7 +2828,7 @@ const App=()=>{
   // Load all data from Firebase on mount — realtime listeners
   useEffect(()=>{
     const unsubs=[];
-    unsubs.push(dbOn('ncsflow/tasks',   v=>{setTasksRaw(Array.isArray(v)?v:(v?Object.values(v):[]));setDbReady(true);}));
+    unsubs.push(dbOn('ncsflow/tasks',   v=>{setTasksRaw(Array.isArray(v)?v:(v?Object.values(v):[]));dbReadyRef.current=true;setDbReady(true);}));
     unsubs.push(dbOn('ncsflow/projects',v=>{setProjectsRaw(Array.isArray(v)?v:(v?Object.values(v):[]));} ));
     unsubs.push(dbOn('ncsflow/users',   v=>{setUsersRaw(Array.isArray(v)?v:(v?Object.values(v):[]));} ));
     unsubs.push(dbOn('ncsflow/tasktypes',v=>{if(v)setTaskTypesRaw(Array.isArray(v)?v:Object.values(v));}));
