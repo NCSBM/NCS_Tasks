@@ -1547,13 +1547,15 @@ const Projects=({user,setScreen,onViewTasks,activeDept=''})=>{
   const [lcsPrj,setLcsPrj]=useState(null);
   const [editPrj,setEditPrj]=useState(null);
   const [editForm,setEditForm]=useState({code:'',name:'',client:'',status:'active',depts:[],origDepts:[]});
+  const [confirmDelete,setConfirmDelete]=useState(false);
   const initialDepts=activeDept?[activeDept]:[];
   const [form,setForm]=useState({code:'',name:'',client:'',depts:initialDepts});
   const [phaseFilter,setPhaseFilter]=useState(0);
   const [statusFilter,setStatusFilter]=useState('');
   const create=()=>{if(!form.code||!form.name)return;setProjects(prev=>[{id:uid(),code:form.code,name:form.name,clientName:form.client,status:'active',members:[user.id],phases:mkPhases(),departments:form.depts||[]},...prev]);setShowNew(false);setForm({code:'',name:'',client:'',depts:[]});};
-  const openEdit=p=>{setEditPrj(p);setEditForm({code:p.code,name:p.name,client:p.clientName||'',status:p.status,depts:p.departments||[],origDepts:p.departments||[]});};
+  const openEdit=p=>{setEditPrj(p);setConfirmDelete(false);setEditForm({code:p.code,name:p.name,client:p.clientName||'',status:p.status,depts:p.departments||[],origDepts:p.departments||[]});};
   const saveEdit=()=>{if(!editForm.code||!editForm.name)return;setProjects(prev=>prev.map(p=>p.id===editPrj.id?{...p,code:editForm.code,name:editForm.name,clientName:editForm.client,status:editForm.status,departments:editForm.depts||[]}:p));setEditPrj(null);};
+  const deleteProject=()=>{setProjects(prev=>prev.filter(p=>p.id!==editPrj.id));setEditPrj(null);setConfirmDelete(false);};
   return React.createElement('div',{className:'sc fi'},
     React.createElement('div',{className:'sh'},
       React.createElement('div',null,
@@ -1728,8 +1730,32 @@ const Projects=({user,setScreen,onViewTasks,activeDept=''})=>{
             'To change department assignments, delete and recreate the project'
           )
         ),
-        React.createElement(Btn,{v:'pr',sz:'md',ch:React.createElement(React.Fragment,null,I.check,'\u00a0Save Changes'),onClick:saveEdit,dis:!editForm.code||!editForm.name}),
-          React.createElement(Btn,{v:'se',sz:'md',ch:'Cancel',onClick:()=>setEditPrj(null)})
+        confirmDelete
+          ? React.createElement('div',{style:{background:'#fef2f2',border:'2px solid #fecaca',borderRadius:12,padding:'14px 16px',marginBottom:4}},
+              React.createElement('div',{style:{fontSize:13.5,fontWeight:700,color:'#dc2626',marginBottom:10}},
+                '⚠️ Delete "',editForm.code,'"? This cannot be undone.'
+              ),
+              React.createElement('div',{style:{display:'flex',gap:10}},
+                React.createElement('button',{
+                  onClick:deleteProject,
+                  style:{background:'#dc2626',color:'#fff',border:'none',borderRadius:9,padding:'9px 20px',fontWeight:700,fontSize:13.5,cursor:'pointer',fontFamily:'var(--fb)'}
+                },'🗑️ Yes, Delete Project'),
+                React.createElement('button',{
+                  onClick:()=>setConfirmDelete(false),
+                  style:{background:'var(--bg)',color:'var(--t2)',border:'1.5px solid var(--bdr)',borderRadius:9,padding:'9px 18px',fontWeight:600,fontSize:13.5,cursor:'pointer',fontFamily:'var(--fb)'}
+                },'Cancel')
+              )
+            )
+          : React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',gap:10}},
+              React.createElement('div',{style:{display:'flex',gap:10}},
+                React.createElement(Btn,{v:'pr',sz:'md',ch:React.createElement(React.Fragment,null,I.check,'\u00a0Save Changes'),onClick:saveEdit,dis:!editForm.code||!editForm.name}),
+                React.createElement(Btn,{v:'se',sz:'md',ch:'Cancel',onClick:()=>setEditPrj(null)})
+              ),
+              React.createElement('button',{
+                onClick:()=>setConfirmDelete(true),
+                style:{background:'#fef2f2',color:'#dc2626',border:'1.5px solid #fecaca',borderRadius:9,padding:'9px 16px',fontWeight:700,fontSize:13,cursor:'pointer',fontFamily:'var(--fb)',display:'flex',alignItems:'center',gap:6}
+              },'🗑️ Delete Project')
+            )
         )
       )
     })
