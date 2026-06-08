@@ -354,7 +354,10 @@ const DIRECTIONS={
 };
 
 const USERS=[
-  {id:'u1',fullName:'Bassem Al-Rashidy',email:'bassem@ncs.com',username:'bassem',role:'global_admin',isActive:true,avatar:'BA',lastLogin:null,departments:[],password:'ncs@2026'},
+  {id:'u1',fullName:'Bassem Medhat',email:'bmedhat@next-cs.net',username:'bassem',role:'global_admin',isActive:true,avatar:'BM',lastLogin:null,departments:[],password:'ncs@2026'},
+  {id:'u2',fullName:'Ismail Yahya',email:'lyahya@next-cs.net',username:'Ismail',role:'co_admin',isActive:true,avatar:'IY',lastLogin:null,departments:[],password:'ncs@2026'},
+  {id:'u3',fullName:'Adham Said',email:'Asaid@next-cs.net',username:'Adham',role:'member',isActive:true,avatar:'A',lastLogin:null,departments:['finance'],password:'ncs@2026'},
+  {id:'u4',fullName:'Moaz Said',email:'msaid@next-cs.net',username:'Moaz Said',role:'member',isActive:true,avatar:'MS',lastLogin:null,departments:['finance'],password:'ncs@2026'},
 ];
 // Helper: build dept phases map
 const mkDeptPhases=(depts,phaseFn)=>{
@@ -780,12 +783,12 @@ const DirectionPicker=({value,onChange})=>React.createElement('div',null,
 const Login=({onLogin,allUsers})=>{
   const [id,setId]=useState('');const [pw,setPw]=useState('');
   const [sp,setSp]=useState(false);const [err,setErr]=useState('');const [ld,setLd]=useState(false);
-  const CR={bassem:'u1','bassem@ncs.com':'u1'};
   const sub=e=>{
     e.preventDefault();setLd(true);setErr('');
     setTimeout(()=>{
       const userList=(typeof allUsers!=='undefined'&&allUsers&&allUsers.length)?allUsers:USERS;
-      const found=userList.find(u=>u.isActive&&(u.username===id.toLowerCase().trim()||u.email===id.toLowerCase().trim()));
+      const effectiveList=userList.length>0?userList:USERS;
+      const found=effectiveList.find(u=>u.isActive&&(u.username===id.toLowerCase().trim()||u.email===id.toLowerCase().trim()));
       if(found){
         const validPw=found.password||'password123';
         if(pw===validPw){onLogin(found);}
@@ -2648,9 +2651,17 @@ const App=()=>{
   const loadLS=(key,fallback)=>{try{const v=localStorage.getItem('ncsflow_'+key);return v?JSON.parse(v):fallback;}catch{return fallback;}};
   const saveLS=(key,val)=>{try{localStorage.setItem('ncsflow_'+key,JSON.stringify(val));}catch{}};
 
+  const loadUsers=()=>{
+    const saved=loadLS('users',null);
+    if(!saved||saved.length===0)return USERS;
+    const hasAdmin=saved.find(u=>u.id==='u1'||u.username==='bassem');
+    if(!hasAdmin)return[...USERS,...saved];
+    return saved;
+  };
+
   const [tasks,setTasksRaw]=useState(()=>loadLS('tasks',TASKS));
   const [projects,setProjectsRaw]=useState(()=>loadLS('projects',PROJECTS));
-  const [users,setUsersRaw]=useState(()=>loadLS('users',USERS));
+  const [users,setUsersRaw]=useState(()=>loadUsers());
 
   // Wrap setters to also persist
   const setTasks=v=>setTasksRaw(prev=>{const next=typeof v==='function'?v(prev):v;saveLS('tasks',next);return next;});
@@ -2713,3 +2724,4 @@ ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(
 </script>
 </body>
 </html>
+
