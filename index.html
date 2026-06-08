@@ -329,13 +329,16 @@ const LCS_MAIN=[
   {id:5,name:'Operate',icon:'🛠️',sub:[15,16]},
 ];
 // Get phases for a specific dept from a project
+// Helper: ensure phases is always a real array (Firebase returns objects)
+const ensureArr=v=>!v?[]:Array.isArray(v)?v:Object.values(v);
+
 const getDeptPhases=(project,deptId)=>{
   if(!project)return mkPhases();
-  if(project.deptPhases&&deptId&&project.deptPhases[deptId])return project.deptPhases[deptId];
+  if(project.deptPhases&&deptId&&project.deptPhases[deptId])return ensureArr(project.deptPhases[deptId]);
   // Fallback: if old format or no deptId, try first dept or empty
   if(project.deptPhases){
     const firstKey=Object.keys(project.deptPhases)[0];
-    if(firstKey)return project.deptPhases[firstKey];
+    if(firstKey)return ensureArr(project.deptPhases[firstKey]);
   }
   return mkPhases();
 };
@@ -345,13 +348,13 @@ const getOverallPhases=(project)=>{
   if(!project.deptPhases)return mkPhases();
   const allDepts=Object.keys(project.deptPhases);
   if(allDepts.length===0)return mkPhases();
-  if(allDepts.length===1)return project.deptPhases[allDepts[0]];
+  if(allDepts.length===1)return ensureArr(project.deptPhases[allDepts[0]]);
   // Merge: for each phase, take the most advanced status across all depts
   const STATUS_ORDER={done:3,in_progress:2,pending:1};
   return mkPhases().map(basePh=>{
     let best=basePh;
     allDepts.forEach(d=>{
-      const ph=(project.deptPhases[d]||[]).find(p=>p.phaseId===basePh.phaseId);
+      const ph=ensureArr(project.deptPhases[d]).find(p=>p.phaseId===basePh.phaseId);
       if(ph&&(STATUS_ORDER[ph.status]||0)>(STATUS_ORDER[best.status]||0))best=ph;
     });
     return best;
@@ -360,7 +363,7 @@ const getOverallPhases=(project)=>{
 
 // Helper: get completion % for a main phase from project phases
 const getMainPhaseStatus=(projectPhases,mainPhase)=>{
-  const relevant=(projectPhases||[]).filter(ph=>mainPhase.sub.includes(ph.phaseId));
+  const relevant=ensureArr(projectPhases).filter(ph=>mainPhase.sub.includes(ph.phaseId));
   if(!relevant.length)return{pct:0,status:'pending'};
   const done=relevant.filter(ph=>ph.status==='done').length;
   const pct=Math.round(done/relevant.length*100);
@@ -1155,7 +1158,7 @@ const Dashboard=({user,setScreen,setSelTask,activeDept=''})=>{
       ),
       React.createElement('div',{className:'cd',style:{padding:24}},
         React.createElement('div',{style:{fontFamily:'var(--fd)',fontSize:15,fontWeight:800,marginBottom:16}},'Active Projects'),
-        getVisibleProjects(user,projects,activeDept).filter(p=>p.status==='active').map(p=>{const pt=mine.filter(t=>t.projectId===p.id);const dn=pt.filter(t=>t.status==='completed').length;const pct=pt.length?Math.round(dn/pt.length*100):0;return React.createElement('div',{key:p.id,style:{marginBottom:18}},React.createElement('div',{style:{display:'flex',justifyContent:'space-between',marginBottom:5}},React.createElement('span',{style:{fontSize:12.5,fontWeight:700}},p.name.split('—')[0].trim()),React.createElement('span',{style:{fontSize:12,color:'var(--t3)',fontWeight:600}},pct,'%')),React.createElement('div',{className:'prb'},React.createElement('div',{className:'prf',style:{width:`${pct}%`}})),React.createElement('div',{style:{fontSize:11,color:'var(--t3)'}},pt.length,' tasks'))})
+        getVisibleProjects(user,projects,activeDept).filter(p=>p.status==='active').map(p=>{const pt=tasks.filter(t=>t.projectId===p.id&&(!activeDept||!t.department||t.department===activeDept));const dn=pt.filter(t=>t.status==='completed').length;const pct=pt.length?Math.round(dn/pt.length*100):0;return React.createElement('div',{key:p.id,style:{marginBottom:18}},React.createElement('div',{style:{display:'flex',justifyContent:'space-between',marginBottom:5}},React.createElement('span',{style:{fontSize:12.5,fontWeight:700}},p.name.split('—')[0].trim()),React.createElement('span',{style:{fontSize:12,color:'var(--t3)',fontWeight:600}},pct,'%')),React.createElement('div',{className:'prb'},React.createElement('div',{className:'prf',style:{width:`${pct}%`}})),React.createElement('div',{style:{fontSize:11,color:'var(--t3)'}},pt.length,' tasks'))})
       )
     )
   );
@@ -1338,7 +1341,7 @@ const Tasks=({user,selTask,setSelTask,initialProjFilter,clearProjFilter,activeDe
 const LCSPanel=({project,onClose,onUpdate,isAdmin,currentUser,activeDept=''})=>{
   // Load phases for the active department only
   const deptKey=activeDept||(project.departments&&project.departments[0])||'';
-  const [phases,setPhases]=useState(getDeptPhases(project,deptKey));
+  const [phases,setPhases]=useState(ensureArr(getDeptPhases(project,deptKey)));
   const [saving,setSaving]=useState(false);
   // Lock body scroll and force panel to top when open
   useEffect(()=>{
