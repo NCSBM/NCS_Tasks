@@ -1671,12 +1671,16 @@ const Users=({curUser})=>{
   const [filterRole,setFilterRole]=useState('');
   const [filterDept,setFilterDept]=useState('');
   const [editUser,setEditUser]=useState(null);
-  const [editForm,setEditForm]=useState({name:'',email:'',username:'',newPw:''});
-  const openEdit=u=>{setEditUser(u);setEditForm({name:u.fullName,email:u.email,username:u.username,newPw:'',departments:u.departments||[]});};
+  const [editForm,setEditForm]=useState({name:'',email:'',username:'',currentPw:'',newPw:''});
+  const [editPwChanged,setEditPwChanged]=useState(false);
+  const [editShowCurPw,setEditShowCurPw]=useState(false);
+  const [editShowNewPw,setEditShowNewPw]=useState(false);
+  const openEdit=u=>{setEditUser(u);setEditPwChanged(false);setEditForm({name:u.fullName,email:u.email,username:u.username,currentPw:u.password||'',newPw:'',depts:u.departments||[]});};
   const saveEdit=()=>{
     if(!editForm.name||!editForm.email||!editForm.username)return;
-    const initials=editForm.name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
-    setUsers(prev=>prev.map(u=>u.id===editUser.id?{...u,fullName:editForm.name,email:editForm.email,username:editForm.username,avatar:editForm.name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase(),departments:editForm.depts||[],...(editForm.newPw?{password:editForm.newPw}:{})}:u));};
+    const pwChanged=!!(editForm.newPw&&editForm.newPw!==editForm.currentPw);
+    setUsers(prev=>prev.map(u=>u.id===editUser.id?{...u,fullName:editForm.name,email:editForm.email,username:editForm.username,avatar:editForm.name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase(),departments:editForm.depts||[],...(editForm.newPw?{password:editForm.newPw}:{})}:u));
+    if(pwChanged){setEditPwChanged(true);setTimeout(()=>{setEditUser(null);setEditPwChanged(false);},2200);}else{setEditUser(null);}};
   const create=()=>{
     if(!form.name||!form.email||!form.username||!form.pw)return;
     const ini=form.name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
@@ -1752,7 +1756,33 @@ const Users=({curUser})=>{
           React.createElement(Fld,{lbl:'Username *',ch:React.createElement('input',{className:'ip',type:'text',value:editForm.username,onChange:e=>setEditForm({...editForm,username:e.target.value})})})
         ),
         React.createElement('div',{className:'frw',style:{marginBottom:6}},
-          React.createElement(Fld,{lbl:'New Password (leave blank to keep current)',ch:React.createElement('input',{type:'password',className:'ip',placeholder:'Enter new password to reset',value:editForm.newPw,onChange:e=>setEditForm({...editForm,newPw:e.target.value})})})
+          React.createElement(Fld,{lbl:'Current Password',ch:
+            React.createElement('div',{className:'pw'},
+              React.createElement('input',{
+                className:'ip',
+                style:{paddingRight:40,background:'#f8f9fc',color:'var(--t2)',fontFamily:'var(--fm)',fontSize:13},
+                type:editShowCurPw?'text':'password',
+                value:editForm.currentPw,
+                readOnly:true
+              }),
+              React.createElement('button',{type:'button',className:'pt2',onClick:()=>setEditShowCurPw(v=>!v)},editShowCurPw?I.eyeOff:I.eye)
+            )
+          })
+        ),
+        React.createElement('div',{className:'frw',style:{marginBottom:6}},
+          React.createElement(Fld,{lbl:'New Password (leave blank to keep current)',ch:
+            React.createElement('div',{className:'pw'},
+              React.createElement('input',{
+                type:editShowNewPw?'text':'password',
+                className:'ip',
+                style:{paddingRight:40},
+                placeholder:'Enter new password to change...',
+                value:editForm.newPw,
+                onChange:e=>setEditForm({...editForm,newPw:e.target.value})
+              }),
+              React.createElement('button',{type:'button',className:'pt2',onClick:()=>setEditShowNewPw(v=>!v)},editShowNewPw?I.eyeOff:I.eye)
+            )
+          })
         ),
         React.createElement('div',{className:'frw',style:{marginBottom:14}},
           React.createElement('div',{style:{fontSize:11.5,fontWeight:700,color:'var(--t3)',textTransform:'uppercase',letterSpacing:'.06em',marginBottom:8}},'Departments'),
@@ -1764,10 +1794,15 @@ const Users=({curUser})=>{
             ))
           )
         ),
-        React.createElement('div',{className:'ibx',style:{marginBottom:16}},I.alert,React.createElement('span',null,editForm.newPw?'⚠️ Password will be reset — share it securely with the user.':'Password unchanged.')),
+        editPwChanged
+          ? React.createElement('div',{style:{background:'#f0fdf4',border:'2px solid #10b981',borderRadius:12,padding:'14px 18px',marginBottom:16,display:'flex',alignItems:'center',gap:10,fontSize:14,color:'#059669',fontWeight:700}},
+              '✅ Password changed! New password: ',
+              React.createElement('span',{style:{fontFamily:'var(--fm)',fontSize:13,background:'#dcfce7',padding:'3px 10px',borderRadius:6,color:'#166534',marginLeft:4}},editForm.newPw)
+            )
+          : React.createElement('div',{className:'ibx',style:{marginBottom:16}},I.alert,React.createElement('span',null,editForm.newPw?'⚠️ Password will be changed — note it before saving.':'Password unchanged.')),
         React.createElement('div',{style:{display:'flex',gap:10}},
-          React.createElement(Btn,{v:'pr',sz:'md',ch:React.createElement(React.Fragment,null,I.check,' Save Changes'),onClick:saveEdit,dis:!editForm.name||!editForm.email||!editForm.username}),
-          React.createElement(Btn,{v:'se',sz:'md',ch:'Cancel',onClick:()=>setEditUser(null)})
+          React.createElement(Btn,{v:'pr',sz:'md',ch:React.createElement(React.Fragment,null,I.check,' Save Changes'),onClick:saveEdit,dis:!editForm.name||!editForm.email||!editForm.username||editPwChanged}),
+          React.createElement(Btn,{v:'se',sz:'md',ch:'Cancel',onClick:()=>{setEditUser(null);setEditPwChanged(false);}})
         )
       )
     }),
