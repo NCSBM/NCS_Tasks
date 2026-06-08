@@ -1249,6 +1249,7 @@ const Tasks=({user,selTask,setSelTask,initialProjFilter,clearProjFilter,activeDe
     if(f.st&&t.status!==f.st)return false;
     if(f.q&&!t.title.toLowerCase().includes(f.q.toLowerCase()))return false;
     if(f.dept&&t.department!==f.dept)return false;
+    if(f.type&&t.taskTypeId!==f.type)return false;
     if(f.phase){const prj=projects.find(p=>p.id===t.projectId);if(!prj)return false;const ph=(prj.phases||[]).find(ph=>String(ph.phaseId)===String(f.phase));if(!ph||ph.status==='pending')return false;}
     return true;
   });
@@ -1336,7 +1337,8 @@ const Tasks=({user,selTask,setSelTask,initialProjFilter,clearProjFilter,activeDe
         DEPARTMENTS.map(d=>React.createElement('option',{key:d.id,value:d.id},d.icon+' '+d.name))
       ),
       React.createElement('select',{className:'fs',value:f.st,onChange:e=>setF({...f,st:e.target.value})},React.createElement('option',{value:''},'All Statuses'),Object.entries(ST).map(([k,v])=>React.createElement('option',{key:k,value:k},v.l))),
-      (f.proj||f.asgn||f.st||f.q)&&React.createElement(Btn,{v:'gh',sz:'sm',ch:'Clear',onClick:()=>setF({proj:'',asgn:'',st:'',q:'',phase:'',dept:''})})
+      React.createElement('select',{className:'fs',value:f.type||'',onChange:e=>setF({...f,type:e.target.value})},React.createElement('option',{value:''},'All Types'),taskTypes.filter(t=>t.isActive).map(t=>React.createElement('option',{key:t.id,value:t.id},t.name))),
+      (f.proj||f.asgn||f.st||f.q||f.type)&&React.createElement(Btn,{v:'gh',sz:'sm',ch:'Clear',onClick:()=>setF({proj:'',asgn:'',st:'',q:'',phase:'',dept:'',type:''})})
     ),
     React.createElement('div',{style:{flex:1,overflowY:'auto',padding:'20px 24px'}},
       Object.keys(ST).map(s=>{
