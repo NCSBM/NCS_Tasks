@@ -745,6 +745,29 @@ const TaskPanel=({task:init,onClose,onUpdate,user})=>{
                 : React.createElement('span',{style:{fontSize:13.5,fontWeight:700}},dl)
             ),
             React.createElement('div',{className:'dfl'},React.createElement('label',null,'Task Direction'),dir?React.createElement('span',{className:dir.cls},dir.icon,' ',dir.label):React.createElement('span',{style:{color:'var(--t3)'}}, '—')),
+            React.createElement('div',{className:'dfl'},
+              React.createElement('label',null,'Task Type'),
+              isMgr
+                ? React.createElement('select',{
+                    className:'ip fs',
+                    style:{width:'100%',marginTop:4,fontFamily:'var(--fb)',fontSize:13,
+                      border:!task.taskTypeId?'2px solid #f59e0b':'',
+                      background:!task.taskTypeId?'#fffbeb':''
+                    },
+                    value:task.taskTypeId||'',
+                    onChange:e=>{
+                      const now=T();
+                      const log={id:uid(),performedBy:user.id,action:'status_changed',fieldChanged:'taskType',oldValue:task.taskTypeId||'',newValue:e.target.value,performedAt:now};
+                      upd({...task,taskTypeId:e.target.value,auditLog:[...(task.auditLog||[]),log]});
+                    }
+                  },
+                    React.createElement('option',{value:''},'⚠️ No type — assign one'),
+                    taskTypes.filter(t=>t.isActive).map(t=>React.createElement('option',{key:t.id,value:t.id},t.name))
+                  )
+                : tt
+                  ? React.createElement('span',{style:{background:tt.colorHex+'18',color:tt.colorHex,padding:'3px 9px',borderRadius:6,fontWeight:600,fontSize:13}},tt.name)
+                  : React.createElement('span',{style:{color:'var(--t3)'}},'—')
+            ),
             React.createElement('div',{className:'dfl'},React.createElement('label',null,'Priority'),React.createElement('span',{style:{fontSize:13,fontWeight:700,color:pri.d}},'▲'.repeat(task.priority),' ',pri.l)),
             React.createElement('div',{className:'dfl'},
               React.createElement('label',null,'Department'),
