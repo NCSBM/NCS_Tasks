@@ -1231,7 +1231,7 @@ const Dashboard=({user,setScreen,setSelTask,activeDept=''})=>{
 // TASKS
 const Tasks=({user,selTask,setSelTask,initialProjFilter,clearProjFilter,activeDept=''})=>{
   const {tasks,setTasks,users,taskTypes,projects}=useCtx();
-  const [f,setF]=useState({proj:initialProjFilter||'',asgn:'',st:'',q:'',phase:''});
+  const [f,setF]=useState({proj:initialProjFilter||'',asgn:'',st:'',q:'',phase:'',noComment:false});
   const [collapsed,setCollapsed]=useState({});
   // Sync initialProjFilter when it changes (from View Tasks button)
   React.useEffect(()=>{if(initialProjFilter){setF(prev=>({...prev,proj:initialProjFilter}));if(clearProjFilter)clearProjFilter();}}, [initialProjFilter]);
@@ -1241,13 +1241,10 @@ const Tasks=({user,selTask,setSelTask,initialProjFilter,clearProjFilter,activeDe
   const mine=(user.role==='team_member'||user.role==='support'?tasks.filter(t=>t.createdBy===user.id||t.assignedTo===user.id):tasks).filter(t=>{
     if(t.status==='completed')return false;
     if(!_vpids.has(t.projectId))return false;
-    // Support sees ALL their tickets regardless of dept
     if(user.role==='support')return true;
-    // If dept selected AND task has a dept → must match
     if(activeDept&&(!t.department||t.department!==activeDept))return false;
     return true;
   });
-  // Phase filter: check if task's project has the selected phase in-progress or done
   const filt=mine.filter(t=>{
     if(f.proj&&t.projectId!==f.proj)return false;
     if(f.asgn&&t.assignedTo!==f.asgn)return false;
@@ -1255,6 +1252,11 @@ const Tasks=({user,selTask,setSelTask,initialProjFilter,clearProjFilter,activeDe
     if(f.q&&!t.title.toLowerCase().includes(f.q.toLowerCase()))return false;
     if(f.dept&&t.department!==f.dept)return false;
     if(f.type&&t.taskTypeId!==f.type)return false;
+    if(f.noComment){
+      const today=new Date().toISOString().split('T')[0];
+      const hasCommentToday=(t.comments||[]).some(c=>c.createdAt&&c.createdAt.startsWith(today));
+      if(hasCommentToday)return false;
+    }
     if(f.phase){const prj=projects.find(p=>p.id===t.projectId);if(!prj)return false;const ph=(prj.phases||[]).find(ph=>String(ph.phaseId)===String(f.phase));if(!ph||ph.status==='pending')return false;}
     return true;
   });
@@ -1343,7 +1345,21 @@ const Tasks=({user,selTask,setSelTask,initialProjFilter,clearProjFilter,activeDe
       ),
       React.createElement('select',{className:'fs',value:f.st,onChange:e=>setF({...f,st:e.target.value})},React.createElement('option',{value:''},'All Statuses'),Object.entries(ST).map(([k,v])=>React.createElement('option',{key:k,value:k},v.l))),
       React.createElement('select',{className:'fs',value:f.type||'',onChange:e=>setF({...f,type:e.target.value})},React.createElement('option',{value:''},'All Types'),taskTypes.filter(t=>t.isActive).map(t=>React.createElement('option',{key:t.id,value:t.id},t.name))),
-      (f.proj||f.asgn||f.st||f.q||f.type)&&React.createElement(Btn,{v:'gh',sz:'sm',ch:'Clear',onClick:()=>setF({proj:'',asgn:'',st:'',q:'',phase:'',dept:'',type:''})})
+      React.createElement('button',{
+        onClick:()=>setF({...f,noComment:!f.noComment}),
+        style:{
+          display:'flex',alignItems:'center',gap:6,padding:'7px 13px',borderRadius:8,cursor:'pointer',
+          fontFamily:'var(--fb)',fontSize:12.5,fontWeight:700,transition:'all .15s',
+          background:f.noComment?'#fef2f2':'#fff',
+          color:f.noComment?'#dc2626':'var(--t3)',
+          border:f.noComment?'1.5px solid #fecaca':'1.5px solid var(--bdr)'
+        }
+      },
+        React.createElement('span',null,'🔇'),
+        'No Comment Today',
+        f.noComment&&React.createElement('span',{style:{background:'#dc2626',color:'#fff',borderRadius:10,padding:'1px 7px',fontSize:11}},filt.length)
+      ),
+      (f.proj||f.asgn||f.st||f.q||f.type||f.noComment)&&React.createElement(Btn,{v:'gh',sz:'sm',ch:'Clear',onClick:()=>setF({proj:'',asgn:'',st:'',q:'',phase:'',dept:'',type:'',noComment:false})})
     ),
     React.createElement('div',{style:{flex:1,overflowY:'auto',padding:'20px 24px'}},
       Object.keys(ST).map(s=>{
