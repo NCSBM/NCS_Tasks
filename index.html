@@ -409,15 +409,17 @@ const canComplete=(role)=>role==='global_admin'||role==='admin'||role==='co_admi
 const canSeeProject=(user,project,activeDept)=>{
   // If a specific dept is selected (sidebar), show ONLY projects assigned to that dept
   if(activeDept){
-    // Projects with no dept assigned → only visible to global admin in "All" view, not in dept view
     if(!project.departments||project.departments.length===0)return false;
     return project.departments.includes(activeDept);
   }
-  // No dept selected (All view) — apply user's dept security
-  if(user.role==='global_admin')return true;
-  if(!project.departments||project.departments.length===0)return true;
-  if(!user.departments||user.departments.length===0)return true;
-  return user.departments.some(d=>project.departments.includes(d));
+  // No dept selected (All view)
+  // If user has specific dept assignments (even global admin), apply them
+  if(user.departments&&user.departments.length>0){
+    if(!project.departments||project.departments.length===0)return true;
+    return user.departments.some(d=>project.departments.includes(d));
+  }
+  // No dept restrictions on user → see everything
+  return true;
 };
 
 // Filter projects user can see
@@ -1001,7 +1003,10 @@ const Sidebar=({screen,setScreen,user,onLogout,open,setOpen,activeDept,setActive
   const isGlobal=user.role==='global_admin';
   const isSupport=user.role==='support';
   const isMgr=isGlobal||user.role==='admin'||user.role==='co_admin';
-  const userDepts=isGlobal?DEPARTMENTS:DEPARTMENTS.filter(d=>(user.departments||[]).includes(d.id));
+  // Global Admin sees only their assigned depts (if any); if none assigned → sees all
+  const userDepts=(user.departments&&user.departments.length>0)
+    ?DEPARTMENTS.filter(d=>(user.departments||[]).includes(d.id))
+    :DEPARTMENTS;
   const DEPT_PAGES=isSupport?[
     {id:'support',l:'Submit Ticket',ic:'plus'},
     {id:'mytickets',l:'My Tickets',ic:'tasks'},
