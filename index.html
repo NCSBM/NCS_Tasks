@@ -2880,8 +2880,25 @@ const TicketsScreen=({user,setSelTask,filter='open'})=>{
 
 
 // APP
+// Sanitize: Firebase rejects undefined — convert all to null recursively
+const sanitize=(obj)=>{
+  if(obj===undefined)return null;
+  if(obj===null||typeof obj!=='object')return obj;
+  if(Array.isArray(obj))return obj.map(sanitize);
+  const out={};
+  Object.keys(obj).forEach(k=>{const v=sanitize(obj[k]);out[k]=v===undefined?null:v;});
+  return out;
+};
+
 const App=()=>{
-  const [user,setUser]=useState(null);
+  // Restore user from sessionStorage (survives tab duplicate & refresh)
+  const [user,setUserRaw]=useState(()=>{
+    try{const s=sessionStorage.getItem('ncsflow_user');return s?JSON.parse(s):null;}catch{return null;}
+  });
+  const setUser=u=>{
+    setUserRaw(u);
+    try{if(u)sessionStorage.setItem('ncsflow_user',JSON.stringify(u));else sessionStorage.removeItem('ncsflow_user');}catch{}
+  };
   const [screen,setScreen]=useState('dashboard');
   const [selTask,setSelTask]=useState(null);
   const [projFilter,setProjFilter]=useState('');
@@ -2897,15 +2914,6 @@ const App=()=>{
   const dbReadyRef=useRef(false);
 
   // Save helpers → write to Firebase ONLY after initial load
-  // Sanitize: Firebase rejects undefined values — convert all to null recursively
-  const sanitize=(obj)=>{
-    if(obj===undefined)return null;
-    if(obj===null||typeof obj!=='object')return obj;
-    if(Array.isArray(obj))return obj.map(sanitize);
-    const out={};
-    Object.keys(obj).forEach(k=>{const v=sanitize(obj[k]);if(v!==undefined)out[k]=v===undefined?null:v;});
-    return out;
-  };
   const saveFB=(key,val)=>{if(dbReadyRef.current)dbSet('ncsflow/'+key,val?sanitize(val):null);};
 
   // Setters: update state + push to Firebase
@@ -2927,6 +2935,15 @@ const App=()=>{
     const timeout=setTimeout(()=>{dbReadyRef.current=true;setDbReady(true);},5000);
     return()=>{unsubs.forEach(u=>u());clearTimeout(timeout);};
   },[]);
+
+  // When users load from Firebase, refresh the logged-in user's data (MUST be before any if/return)
+  useEffect(()=>{
+    if(user&&users.length>0){
+      const fresh=users.find(u=>u.id===user.id);
+      if(fresh&&JSON.stringify(fresh)!==JSON.stringify(user))setUser(fresh);
+      else if(!fresh)setUser(null);
+    }
+  },[users]);
 
   // Show loading while Firebase connects
   if(!dbReady)return React.createElement('div',{style:{
@@ -2955,9 +2972,7 @@ const App=()=>{
 
   if(!user)return React.createElement(Ctx.Provider,{value:ctx},React.createElement(Login,{onLogin:u=>{
     setUser(u);
-    // Support → go to submit ticket; others → dashboard
     setScreen(u.role==='support'?'support':'dashboard');
-    // Auto-select first dept
     if(u.role!=='global_admin'&&u.departments&&u.departments.length>0){
       setActiveDept(u.departments[0]);
     }
