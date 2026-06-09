@@ -2301,8 +2301,10 @@ const OverviewScreen=({user,setScreen,onOpenLCS,activeDept=''})=>{
 
 // DEPT PROJECT STATUS SCREEN
 const DeptOverviewScreen=({user,setScreen,onOpenLCS,activeDept=''})=>{
-  const {projects,tasks}=useCtx();
+  const {projects,tasks,users}=useCtx();
   const dept=DEPARTMENTS.find(d=>d.id===activeDept);
+  const [expandedTasks,setExpandedTasks]=useState({});
+  const toggleTasks=(pid)=>setExpandedTasks(prev=>({...prev,[pid]:!prev[pid]}));
 
   // Only projects for this specific dept
   const visProjects=[...getVisibleProjects(user,projects,activeDept)]
@@ -2442,6 +2444,82 @@ const DeptOverviewScreen=({user,setScreen,onOpenLCS,activeDept=''})=>{
                   onClick:()=>onOpenLCS&&onOpenLCS({...p,_viewDept:activeDept}),
                   style:{fontSize:11.5,fontWeight:600,color:'var(--or)',background:'var(--or-dim)',border:'1px solid var(--or-bdr)',borderRadius:7,padding:'6px 12px',cursor:'pointer',fontFamily:'var(--fb)'}
                 },'📋 Phases')
+              )
+            ),
+            // Expandable tasks section
+            React.createElement('div',{style:{borderTop:'1px solid var(--bdr)'}},
+              // Toggle header
+              React.createElement('button',{
+                onClick:()=>toggleTasks(p.id),
+                style:{width:'100%',display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 18px',background:'none',border:'none',cursor:'pointer',fontFamily:'var(--fb)',transition:'background .15s'},
+                onMouseEnter:e=>{e.currentTarget.style.background='var(--bg)'},
+                onMouseLeave:e=>{e.currentTarget.style.background='none'}
+              },
+                React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8}},
+                  React.createElement('span',{style:{fontSize:12,fontWeight:700,color:'var(--t3)',textTransform:'uppercase',letterSpacing:'.05em'}},'Tasks'),
+                  React.createElement('span',{style:{fontSize:11,background:'var(--bg)',border:'1px solid var(--bdr)',borderRadius:10,padding:'1px 8px',color:'var(--t3)',fontWeight:600}},openTasks),
+                  overdueTasks>0&&React.createElement('span',{style:{fontSize:11,background:'#fef2f2',border:'1px solid #fecaca',borderRadius:10,padding:'1px 8px',color:'#dc2626',fontWeight:700}},overdueTasks+' overdue')
+                ),
+                React.createElement('svg',{width:14,height:14,viewBox:'0 0 24 24',fill:'none',stroke:'var(--t3)',strokeWidth:2.5,style:{transition:'transform .2s',transform:expandedTasks[p.id]?'rotate(180deg)':'rotate(0deg)'}},
+                  React.createElement('polyline',{points:'6 9 12 15 18 9'})
+                )
+              ),
+              // Tasks list
+              expandedTasks[p.id]&&React.createElement('div',{style:{padding:'0 18px 14px'}},
+                (()=>{
+                  const projTasks=tasks.filter(t=>t.projectId===p.id&&t.status!=='completed'&&(!activeDept||t.department===activeDept))
+                    .sort((a,b)=>{
+                      // Sort: overdue first, then by due date
+                      const da=a.dueDate?new Date(a.dueDate):new Date('2099-01-01');
+                      const db=b.dueDate?new Date(b.dueDate):new Date('2099-01-01');
+                      return da-db;
+                    });
+                  if(!projTasks.length)return React.createElement('div',{style:{fontSize:12.5,color:'var(--t3)',fontStyle:'italic',padding:'8px 0'}},'No open tasks');
+                  return projTasks.map(t=>{
+                    const asgn=users.find(u=>u.id===t.assignedTo);
+                    const today=new Date();today.setHours(0,0,0,0);
+                    const due=t.dueDate?new Date(t.dueDate):null;
+                    const daysLeft=due?Math.floor((due-today)/86400000):null;
+                    const isOverdue=daysLeft!==null&&daysLeft<0;
+                    const isDueToday=daysLeft===0;
+                    const st=ST[t.status];
+                    return React.createElement('div',{key:t.id,style:{
+                      display:'flex',alignItems:'center',gap:12,padding:'9px 12px',
+                      background:'#fff',border:'1px solid var(--bdr)',borderRadius:10,
+                      marginBottom:6,transition:'border-color .15s'
+                    },
+                      onMouseEnter:e=>{e.currentTarget.style.borderColor='var(--or)'},
+                      onMouseLeave:e=>{e.currentTarget.style.borderColor='var(--bdr)'}
+                    },
+                      // Priority bar
+                      React.createElement('div',{style:{width:3,alignSelf:'stretch',borderRadius:2,background:PRI[t.priority].d,flexShrink:0}}),
+                      // Task info
+                      React.createElement('div',{style:{flex:1,minWidth:0}},
+                        React.createElement('div',{style:{fontSize:13,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},t.title),
+                        React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8,marginTop:3,flexWrap:'wrap'}},
+                          React.createElement('span',{style:{fontSize:11,background:st.bg,color:st.tx,padding:'1px 7px',borderRadius:4,fontWeight:600}},st.l),
+                          React.createElement('span',{style:{fontSize:11,color:PRI[t.priority].d,fontWeight:600}},PRI[t.priority].l)
+                        )
+                      ),
+                      // Assigned to
+                      asgn
+                        ? React.createElement('div',{style:{display:'flex',alignItems:'center',gap:6,flexShrink:0}},
+                            React.createElement('div',{style:{width:24,height:24,borderRadius:'50%',background:'#6366f1',display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:700,color:'#fff',flexShrink:0}},asgn.avatar||'?'),
+                            React.createElement('span',{style:{fontSize:12,color:'var(--t2)',fontWeight:500,whiteSpace:'nowrap'}},asgn.fullName.split(' ')[0])
+                          )
+                        : React.createElement('span',{style:{fontSize:11,color:'#f59e0b',fontWeight:600,whiteSpace:'nowrap'}},'Unassigned'),
+                      // Days
+                      due&&React.createElement('div',{style:{
+                        fontSize:11.5,fontWeight:700,padding:'3px 10px',borderRadius:6,flexShrink:0,
+                        background:isOverdue?'#fef2f2':isDueToday?'#fffbeb':'var(--bg)',
+                        color:isOverdue?'#dc2626':isDueToday?'#d97706':'var(--t3)',
+                        border:'1px solid '+(isOverdue?'#fecaca':isDueToday?'#fde68a':'var(--bdr)')
+                      }},
+                        isOverdue?`${Math.abs(daysLeft)}d overdue`:isDueToday?'Due today':`${daysLeft}d left`
+                      )
+                    );
+                  });
+                })()
               )
             )
           );
