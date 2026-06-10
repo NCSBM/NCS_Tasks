@@ -2106,7 +2106,7 @@ const CompletedScreen=({user,activeDept=''})=>{
       const a=getUser(t.assignedTo,users);
       const tp=getType(t.taskTypeId,taskTypes);
       const p=getProject(t.projectId,projects);
-      const lastCmt=(t.comments||[]).filter(c=>!c.isDailyUpdate).slice(-1)[0];
+      const lastCmt=(t.comments||[]).slice(-1)[0];
       return React.createElement('div',{key:t.id,style:{marginBottom:8}},
         React.createElement('div',{className:'tr',onClick:()=>setLocalSel(t),style:{cursor:'pointer'}},
           React.createElement('div',{style:{width:3,alignSelf:'stretch',borderRadius:2,background:'#10b981',minHeight:32,flexShrink:0}}),
