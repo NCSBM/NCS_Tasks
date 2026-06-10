@@ -1382,9 +1382,9 @@ const Tasks=({user,selTask,setSelTask,initialProjFilter,clearProjFilter,activeDe
             const today=todayKey();
             const allCmts=t.comments||[];
             const todayCmt=allCmts.filter(c=>c.isDailyUpdate&&c.createdAt&&c.createdAt.startsWith(today)).slice(-1)[0];
-            const lastRegCmt=allCmts.filter(c=>!c.isDailyUpdate).slice(-1)[0];
-            const lastCmtToShow=todayCmt||lastRegCmt;
-            const lastCmtText=lastCmtToShow?lastCmtToShow.body:'No comment today';
+            const todayRegCmt=allCmts.filter(c=>!c.isDailyUpdate&&c.createdAt&&c.createdAt.startsWith(today)).slice(-1)[0];
+            const todayAnyCmt=todayCmt||todayRegCmt;
+            const lastCmtText=todayAnyCmt?todayAnyCmt.body:'';
             return React.createElement('div',{key:t.id,style:{marginBottom:6}},
               React.createElement('div',{className:`tr ${selTask?.id===t.id?'sel':''}`,onClick:()=>setSelTask(t),style:needsDaily?{borderColor:'#f59e0b',borderWidth:2}:{}},
                 React.createElement('div',{style:{width:3,alignSelf:'stretch',borderRadius:2,background:PRI[t.priority].d,minHeight:32,flexShrink:0}}),
@@ -1421,9 +1421,14 @@ const Tasks=({user,selTask,setSelTask,initialProjFilter,clearProjFilter,activeDe
                 )
               ),
               React.createElement('div',{style:{display:'flex',alignItems:'center',gap:6,padding:'5px 14px 5px 20px',background:'#f8f9fc',borderRadius:'0 0 10px 10px',border:'1px solid var(--bdr)',borderTop:'none',marginTop:-6}},
-                React.createElement('span',{style:{fontSize:12}},todayCmt?'💬':lastRegCmt?'💬':'🔇'),
-                React.createElement('span',{style:{fontSize:11.5,color:todayCmt?'var(--t2)':lastRegCmt?'var(--t3)':'#ef4444',fontStyle:!todayCmt&&!lastRegCmt?'italic':'normal',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:500}},
-                  todayCmt?'Today: '+lastCmtText:lastRegCmt?'Last: '+lastCmtText:'No comment today'
+                React.createElement('span',{style:{fontSize:12}},todayAnyCmt?'💬':'🔇'),
+                React.createElement('span',{style:{
+                  fontSize:11.5,
+                  color:todayAnyCmt?'var(--t2)':'#ef4444',
+                  fontStyle:todayAnyCmt?'normal':'italic',
+                  overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:500
+                }},
+                  todayAnyCmt?'Today: '+lastCmtText:'No comment today'
                 )
               )
             );
