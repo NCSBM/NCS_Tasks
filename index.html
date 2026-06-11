@@ -1072,11 +1072,26 @@ const PwResetScreen=({users,setUsers})=>{
             )
           ),
           done
-            ? React.createElement('div',{style:{background:'#f0fdf4',border:'2px solid #10b981',borderRadius:12,padding:'14px 18px',minWidth:220}},
-                React.createElement('div',{style:{fontSize:12,fontWeight:700,color:'#059669',marginBottom:8}},'✅ Password Reset Done'),
-                React.createElement('div',{style:{fontSize:11.5,color:'#166534',marginBottom:6}},'Temporary password:'),
-                React.createElement('div',{style:{fontFamily:'var(--fm)',fontSize:16,fontWeight:800,color:'#059669',background:'#dcfce7',padding:'6px 12px',borderRadius:8,letterSpacing:2}},done),
-                React.createElement('div',{style:{fontSize:11,color:'#166534',marginTop:8,fontStyle:'italic'}},'Share this with the user — they\'ll be asked to change it on login.')
+            ? React.createElement('div',{style:{background:'#f0fdf4',border:'2px solid #10b981',borderRadius:12,padding:'16px 20px',minWidth:260}},
+                React.createElement('div',{style:{fontSize:12,fontWeight:700,color:'#059669',marginBottom:10}},'✅ Temp Password Ready'),
+                React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8,marginBottom:10}},
+                  React.createElement('div',{style:{
+                    fontFamily:'var(--fm)',fontSize:20,fontWeight:900,
+                    color:'#166534',background:'#bbf7d0',
+                    padding:'10px 16px',borderRadius:8,letterSpacing:3,
+                    flex:1,textAlign:'center',border:'2px dashed #10b981'
+                  }},done),
+                  React.createElement('button',{
+                    onClick:()=>{
+                      navigator.clipboard.writeText(done).catch(()=>{});
+                      // Visual feedback
+                      const btn=document.activeElement;
+                      if(btn){const orig=btn.textContent;btn.textContent='✅';setTimeout(()=>{btn.textContent=orig;},1500);}
+                    },
+                    style:{background:'#10b981',color:'#fff',border:'none',borderRadius:8,padding:'10px 14px',cursor:'pointer',fontWeight:700,fontSize:13,fontFamily:'var(--fb)',flexShrink:0}
+                  },'📋 Copy')
+                ),
+                React.createElement('div',{style:{fontSize:11,color:'#166534',fontStyle:'italic',lineHeight:1.5}},'Share with user — they must change it on first login.')
               )
             : React.createElement('button',{
                 onClick:()=>resetPw(req),
