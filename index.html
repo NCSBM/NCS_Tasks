@@ -1615,13 +1615,27 @@ const Sidebar=({screen,setScreen,user,onLogout,open,setOpen,activeDept,setActive
   );
 };
 // TOPBAR
-const Topbar=({user,onMenu,activeDept=''})=>{
+const Topbar=({user,onMenu,activeDept='',onGoToPwResets})=>{
   const {tasks,projects}=useCtx();
   const [dark,setDark]=useState(getDarkMode());
   const [soundOn,setSoundOn]=useState(()=>{try{return localStorage.getItem('ncsflow_sound')!=='0';}catch{return true;}});
+  const [pwResetCount,setPwResetCount]=useState(0);
 
   const toggleDark=()=>{const nd=!dark;setDark(nd);setDarkMode(nd);};
   const toggleSound=()=>{const ns=!soundOn;setSoundOn(ns);try{localStorage.setItem('ncsflow_sound',ns?'1':'0');}catch{}if(ns)playSound('notify');};
+
+  useEffect(()=>{
+    if(user.role!=='global_admin')return;
+    const unsub=dbOn('ncsflow/pwResets',v=>{
+      if(!v){setPwResetCount(0);return;}
+      const arr=Array.isArray(v)?v:Object.values(v);
+      const count=arr.filter(r=>r&&r.status==='pending').length;
+      setPwResetCount(count);
+      const soundEnabled=localStorage.getItem('ncsflow_sound')!=='0';
+      if(soundEnabled&&count>0)playSound('notify');
+    });
+    return unsub;
+  },[]);
 
   const _vpids=new Set(getVisibleProjects(user,projects,activeDept||'').map(p=>p.id));
   const mine=(user.role==='team_member'||user.role==='support'?tasks.filter(t=>t.createdBy===user.id||t.assignedTo===user.id):tasks).filter(t=>{
@@ -1632,16 +1646,33 @@ const Topbar=({user,onMenu,activeDept=''})=>{
     return true;
   });
   const als=mine.filter(t=>['ov','td'].includes(dStat(t.dueDate,t.status)));
+
   return React.createElement('div',{className:'tb'},
     React.createElement('button',{style:{padding:8,background:'none',border:'none',color:'var(--t2)',cursor:'pointer',marginRight:8,display:'flex'},onClick:onMenu},I.menu),
     React.createElement('div',{style:{flex:1}}),
     React.createElement('div',{style:{display:'flex',alignItems:'center',gap:10}},
       als.length>0&&React.createElement('div',{className:'ap'},I.alert,als.length,' alert',als.length>1?'s':''),
+      // Bell: password reset notifications (global admin only)
+      user.role==='global_admin'&&React.createElement('button',{
+        onClick:()=>onGoToPwResets&&onGoToPwResets(),
+        title:'Password Reset Requests',
+        style:{position:'relative',width:34,height:34,borderRadius:8,border:'1px solid '+(pwResetCount>0?'#f5a623':'var(--bdr)'),background:pwResetCount>0?'#f5a62318':'var(--bg)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,transition:'all .15s'}
+      },
+        '🔔',
+        pwResetCount>0&&React.createElement('span',{style:{
+          position:'absolute',top:-6,right:-6,
+          background:'#ef4444',color:'#fff',
+          borderRadius:'50%',width:18,height:18,
+          fontSize:10,fontWeight:800,
+          display:'flex',alignItems:'center',justifyContent:'center',
+          border:'2px solid var(--bg)'
+        }},pwResetCount)
+      ),
       // Sound toggle
       React.createElement('button',{
         onClick:toggleSound,title:soundOn?'Mute notifications':'Enable notifications',
         style:{width:34,height:34,borderRadius:8,border:'1px solid var(--bdr)',background:'var(--bg)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,transition:'all .15s'}
-      },soundOn?'🔔':'🔕'),
+      },soundOn?'🔊':'🔕'),
       // Dark mode toggle
       React.createElement('button',{
         onClick:toggleDark,title:dark?'Light mode':'Dark mode',
@@ -3669,7 +3700,7 @@ const App=()=>{
     React.createElement('div',{className:'app'},
       React.createElement(Sidebar,{screen,setScreen:s=>{setScreen(s);setSelTask(null)},user,onLogout:()=>{authSignOut();setUser(null);setScreen('dashboard');setActiveDept('');},open:sbOpen,setOpen:setSbOpen,activeDept,setActiveDept}),
       React.createElement('div',{className:'main'},
-        React.createElement(Topbar,{user,onMenu:()=>setSbOpen(v=>!v),activeDept}),
+        React.createElement(Topbar,{user,onMenu:()=>setSbOpen(v=>!v),activeDept,onGoToPwResets:()=>setScreen('pwresets')}),
         (screenMap[screen]||screenMap.dashboard)()
       )
     )
