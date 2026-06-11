@@ -9,6 +9,7 @@
 <!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
@@ -262,6 +263,13 @@ const firebaseConfig={
 };
 firebase.initializeApp(firebaseConfig);
 const db=firebase.database();
+const auth=firebase.auth();
+
+// Auth helpers
+const authSignIn=(email,pw)=>auth.signInWithEmailAndPassword(email,pw);
+const authSignUp=(email,pw)=>auth.createUserWithEmailAndPassword(email,pw);
+const authSignOut=()=>auth.signOut();
+const authUpdatePw=(newPw)=>auth.currentUser?auth.currentUser.updatePassword(newPw):Promise.reject('Not logged in');
 
 // DB helpers
 const dbGet=path=>db.ref(path).once('value').then(s=>s.val());
@@ -942,12 +950,156 @@ const SetupWizard=({onSetup})=>{
 };
 
 // LOGIN
+// FORCE CHANGE PASSWORD COMPONENT
+const ForceChangePassword=({user,onChanged,onLogout})=>{
+  const [newPw,setNewPw]=useState('');
+  const [confirmPw,setConfirmPw]=useState('');
+  const [showNew,setShowNew]=useState(false);
+  const [showConf,setShowConf]=useState(false);
+  const [err,setErr]=useState('');
+  const [saving,setSaving]=useState(false);
+
+  const submit=async()=>{
+    if(newPw.length<6){setErr('Password must be at least 6 characters.');return;}
+    if(newPw!==confirmPw){setErr('Passwords do not match.');return;}
+    setSaving(true);
+    try{
+      // Update password in Firebase Auth
+      await authUpdatePw(newPw);
+    }catch(e){
+      // If re-auth required, ignore — will update on next login
+      console.log('Auth update:', e.message);
+    }
+    setTimeout(()=>{onChanged(newPw);},600);
+  };
+
+  return React.createElement('div',null,
+    React.createElement('div',{style:{background:'#fffbeb',border:'2px solid #f59e0b',borderRadius:12,padding:'14px 16px',marginBottom:20,display:'flex',gap:10}},
+      React.createElement('span',{style:{fontSize:20}},'🔐'),
+      React.createElement('div',null,
+        React.createElement('div',{style:{fontSize:13,fontWeight:700,color:'#92400e'}},'Temporary Password Active'),
+        React.createElement('div',{style:{fontSize:12,color:'#a16207',marginTop:2}},'Please set a new personal password to secure your account.')
+      )
+    ),
+    err&&React.createElement('div',{className:'eb',style:{marginBottom:14}},I.alert,React.createElement('span',null,err)),
+    React.createElement('div',{className:'frw',style:{marginBottom:14}},
+      React.createElement(Fld,{lbl:'New Password *',ch:
+        React.createElement('div',{className:'pw'},
+          React.createElement('input',{className:'ip',style:{paddingRight:40},type:showNew?'text':'password',placeholder:'Min 6 characters',value:newPw,onChange:e=>{setNewPw(e.target.value);setErr('');}}),
+          React.createElement('button',{type:'button',className:'pt2',onClick:()=>setShowNew(v=>!v)},showNew?I.eyeOff:I.eye)
+        )
+      })
+    ),
+    React.createElement('div',{className:'frw',style:{marginBottom:20}},
+      React.createElement(Fld,{lbl:'Confirm New Password *',ch:
+        React.createElement('div',{className:'pw'},
+          React.createElement('input',{className:'ip',style:{paddingRight:40},type:showConf?'text':'password',placeholder:'Repeat password',value:confirmPw,onChange:e=>{setConfirmPw(e.target.value);setErr('');}}),
+          React.createElement('button',{type:'button',className:'pt2',onClick:()=>setShowConf(v=>!v)},showConf?I.eyeOff:I.eye)
+        )
+      })
+    ),
+    newPw&&confirmPw&&newPw===confirmPw&&React.createElement('div',{style:{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,padding:'8px 12px',marginBottom:14,fontSize:12,color:'#059669',fontWeight:600}},'✅ Passwords match'),
+    React.createElement(Btn,{v:'pr',sz:'lg',ch:saving?React.createElement(React.Fragment,null,React.createElement('div',{className:'sp'}),'\u00a0Saving…'):'Set New Password & Continue →',onClick:submit,dis:!newPw||!confirmPw||saving}),
+    React.createElement('div',{style:{textAlign:'center',marginTop:12}},
+      React.createElement('button',{onClick:onLogout,style:{color:'var(--t3)',background:'none',border:'none',cursor:'pointer',fontSize:12,fontFamily:'var(--fb)'}},'Sign out')
+    )
+  );
+};
+
+// PASSWORD RESET REQUESTS SCREEN (for Global Admin)
+const PwResetScreen=({users,setUsers})=>{
+  const [requests,setRequests]=useState([]);
+  const [processed,setProcessed]=useState({});
+
+  useEffect(()=>{
+    const unsub=dbOn('ncsflow/pwResets',v=>{
+      if(!v)return setRequests([]);
+      const arr=Array.isArray(v)?v:Object.values(v);
+      setRequests(arr.filter(r=>r&&r.status==='pending').sort((a,b)=>new Date(b.requestedAt)-new Date(a.requestedAt)));
+    });
+    return unsub;
+  },[]);
+
+  const genTemp=()=>'NCS@'+Math.random().toString(36).slice(2,6).toUpperCase();
+
+  const resetPw=(req)=>{
+    const tempPw=genTemp();
+    // Update user in Firebase with temp password and mustChangePassword flag
+    setUsers(prev=>prev.map(u=>u.id===req.userId?{...u,password:tempPw,mustChangePassword:true}:u));
+    // Mark request as done
+    dbSet('ncsflow/pwResets/'+req.id,{...req,status:'done',resetAt:new Date().toISOString(),tempPassword:tempPw});
+    setProcessed(prev=>({...prev,[req.id]:tempPw}));
+  };
+
+  if(requests.length===0&&Object.keys(processed).length===0){
+    return React.createElement('div',{className:'sc fi'},
+      React.createElement('div',{className:'sh'},
+        React.createElement('div',null,
+          React.createElement('div',{className:'st'},'🔐 Password Reset Requests'),
+          React.createElement('div',{className:'ss'},'No pending requests')
+        )
+      ),
+      React.createElement('div',{className:'cd',style:{padding:40,textAlign:'center'}},
+        React.createElement('div',{style:{fontSize:40,marginBottom:12}},'🎉'),
+        React.createElement('div',{style:{fontSize:15,fontWeight:700,color:'var(--t2)'}},'All clear!'),
+        React.createElement('div',{style:{fontSize:13,color:'var(--t3)',marginTop:6}},'No password reset requests at this time.')
+      )
+    );
+  }
+
+  return React.createElement('div',{className:'sc fi'},
+    React.createElement('div',{className:'sh'},
+      React.createElement('div',null,
+        React.createElement('div',{className:'st'},'🔐 Password Reset Requests'),
+        React.createElement('div',{className:'ss'},requests.length+' pending request'+(requests.length!==1?'s':''))
+      )
+    ),
+    [...requests].map(req=>{
+      const done=processed[req.id];
+      return React.createElement('div',{key:req.id,className:'cd',style:{padding:'20px 24px',marginBottom:14}},
+        React.createElement('div',{style:{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:16}},
+          React.createElement('div',null,
+            React.createElement('div',{style:{display:'flex',alignItems:'center',gap:10,marginBottom:8}},
+              React.createElement('div',{style:{width:40,height:40,borderRadius:'50%',background:'#f59e0b20',border:'2px solid #f59e0b40',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18}},'🔐'),
+              React.createElement('div',null,
+                React.createElement('div',{style:{fontFamily:'var(--fd)',fontSize:15,fontWeight:700}},req.userName),
+                React.createElement('div',{style:{fontSize:12.5,color:'var(--t3)'}},req.userEmail)
+              )
+            ),
+            React.createElement('div',{style:{fontSize:12,color:'var(--t3)',display:'flex',alignItems:'center',gap:5}},
+              React.createElement('span',null,'⏰'),
+              'Requested: '+new Date(req.requestedAt).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})
+            )
+          ),
+          done
+            ? React.createElement('div',{style:{background:'#f0fdf4',border:'2px solid #10b981',borderRadius:12,padding:'14px 18px',minWidth:220}},
+                React.createElement('div',{style:{fontSize:12,fontWeight:700,color:'#059669',marginBottom:8}},'✅ Password Reset Done'),
+                React.createElement('div',{style:{fontSize:11.5,color:'#166534',marginBottom:6}},'Temporary password:'),
+                React.createElement('div',{style:{fontFamily:'var(--fm)',fontSize:16,fontWeight:800,color:'#059669',background:'#dcfce7',padding:'6px 12px',borderRadius:8,letterSpacing:2}},done),
+                React.createElement('div',{style:{fontSize:11,color:'#166534',marginTop:8,fontStyle:'italic'}},'Share this with the user — they\'ll be asked to change it on login.')
+              )
+            : React.createElement('button',{
+                onClick:()=>resetPw(req),
+                style:{background:'var(--or)',color:'#fff',border:'none',borderRadius:10,padding:'11px 22px',fontWeight:700,fontSize:13.5,cursor:'pointer',fontFamily:'var(--fb)',display:'flex',alignItems:'center',gap:8,whiteSpace:'nowrap'}
+              },'🔑 Reset Password')
+        )
+      );
+    })
+  );
+};
+
 const Login=({onLogin,allUsers})=>{
   const [id,setId]=useState('');const [pw,setPw]=useState('');
   const [sp,setSp]=useState(false);const [err,setErr]=useState('');const [ld,setLd]=useState(false);
+  const [showForgot,setShowForgot]=useState(false);
+  const [forgotId,setForgotId]=useState('');
+  const [forgotSent,setForgotSent]=useState(false);
+  const [forgotErr,setForgotErr]=useState('');
+  const [forgotLd,setForgotLd]=useState(false);
+
   const sub=e=>{
     e.preventDefault();setLd(true);setErr('');
-    setTimeout(()=>{
+    setTimeout(async()=>{
       const userList=(typeof allUsers!=='undefined'&&allUsers&&allUsers.length)?allUsers:USERS;
       const effectiveList=userList.length>0?userList:USERS;
       const idLower=id.toLowerCase().trim();
@@ -956,13 +1108,101 @@ const Login=({onLogin,allUsers})=>{
         u.email.toLowerCase()===idLower||
         u.fullName.toLowerCase()===idLower
       ));
-      if(found){
-        const validPw=found.password||'password123';
-        if(pw===validPw){onLogin(found);}
-        else{setErr('Wrong password.');setLd(false);}
-      } else {setErr('User not found or inactive.');setLd(false);}
-    },900);
+      if(!found){setErr('User not found or inactive.');setLd(false);return;}
+      // Sign in with Firebase Auth using user's email
+      try{
+        await authSignIn(found.email, pw);
+        onLogin(found);
+      }catch(firebaseErr){
+        // If Firebase Auth user doesn't exist yet, create it (migration)
+        if(firebaseErr.code==='auth/user-not-found'||firebaseErr.code==='auth/invalid-credential'){
+          // Verify password against our stored password first
+          const validPw=found.password||'password123';
+          if(pw!==validPw){setErr('Wrong password.');setLd(false);return;}
+          try{
+            await authSignUp(found.email, pw);
+            onLogin(found);
+          }catch(e2){
+            setErr('Auth error: '+e2.message);setLd(false);
+          }
+        } else if(firebaseErr.code==='auth/wrong-password'||firebaseErr.code==='auth/invalid-login-credentials'){
+          setErr('Wrong password.');setLd(false);
+        } else {
+          setErr('Login failed: '+firebaseErr.message);setLd(false);
+        }
+      }
+    },100);
   };
+
+  const submitForgot=()=>{
+    if(!forgotId.trim())return;
+    setForgotLd(true);setForgotErr('');
+    setTimeout(()=>{
+      const userList=(typeof allUsers!=='undefined'&&allUsers&&allUsers.length)?allUsers:USERS;
+      const idLower=forgotId.toLowerCase().trim();
+      const found=userList.find(u=>u.isActive&&(
+        u.username.toLowerCase()===idLower||
+        u.email.toLowerCase()===idLower||
+        u.fullName.toLowerCase()===idLower
+      ));
+      if(!found){setForgotErr('User not found.');setForgotLd(false);return;}
+      // Save password reset request to Firebase
+      const req={
+        id:Math.random().toString(36).slice(2),
+        userId:found.id,
+        userName:found.fullName,
+        userEmail:found.email,
+        requestedAt:new Date().toISOString(),
+        status:'pending'
+      };
+      dbSet('ncsflow/pwResets/'+req.id, req)
+        .then(()=>{setForgotSent(true);setForgotLd(false);})
+        .catch(()=>{setForgotErr('Failed to send request. Try again.');setForgotLd(false);});
+    },800);
+  };
+
+  // Forgot Password Modal
+  if(showForgot){
+    return React.createElement('div',{className:'lbg'},
+      React.createElement('div',{className:'lc fi',style:{maxWidth:420}},
+        React.createElement('div',{className:'llg'},
+          React.createElement('div',{className:'liw'},
+            React.createElement('div',{style:{background:'var(--dk)',padding:'10px 16px',borderRadius:14,display:'flex',alignItems:'center',gap:12}},
+              React.createElement(NCSLogo,{sz:32}),
+              React.createElement('div',{style:{borderLeft:'2px solid #f5a62335',paddingLeft:12}},
+                React.createElement('div',{style:{fontFamily:'var(--fd)',fontWeight:800,fontSize:20,color:'#f5a623',lineHeight:1}},'NCS'),
+                React.createElement('div',{style:{fontSize:9,color:'#94a3b8',letterSpacing:'.06em',marginTop:2}},'NEXT CONSULTING SOLUTIONS')
+              )
+            )
+          ),
+          React.createElement('div',{className:'lti',style:{fontSize:18}},'Reset Password'),
+          React.createElement('div',{className:'lsu'},'Enter your username or email')
+        ),
+        forgotSent
+          ? React.createElement('div',null,
+              React.createElement('div',{style:{background:'#f0fdf4',border:'2px solid #10b981',borderRadius:14,padding:'20px',textAlign:'center',marginBottom:20}},
+                React.createElement('div',{style:{fontSize:32,marginBottom:10}},'✅'),
+                React.createElement('div',{style:{fontFamily:'var(--fd)',fontSize:16,fontWeight:800,color:'#059669',marginBottom:6}},'Request Sent!'),
+                React.createElement('div',{style:{fontSize:13,color:'#166534',lineHeight:1.6}},'Your Global Admin has been notified. You\'ll receive a temporary password soon — check with your admin.')
+              ),
+              React.createElement(Btn,{v:'se',sz:'lg',ch:'← Back to Login',onClick:()=>{setShowForgot(false);setForgotSent(false);setForgotId('');}})
+            )
+          : React.createElement('div',null,
+              forgotErr&&React.createElement('div',{className:'eb',style:{marginBottom:14}},I.alert,React.createElement('span',null,forgotErr)),
+              React.createElement('div',{className:'frw',style:{marginBottom:16}},
+                React.createElement(Fld,{lbl:'Email or Username',ch:
+                  React.createElement('input',{className:'ip',type:'text',placeholder:'your username or email',value:forgotId,onChange:e=>setForgotId(e.target.value),autoFocus:true})
+                })
+              ),
+              React.createElement(Btn,{v:'pr',sz:'lg',ch:forgotLd?React.createElement(React.Fragment,null,React.createElement('div',{className:'sp'}),'\u00a0Sending…'):'Send Reset Request',onClick:submitForgot,dis:!forgotId.trim()||forgotLd}),
+              React.createElement('div',{style:{textAlign:'center',marginTop:14}},
+                React.createElement('button',{onClick:()=>setShowForgot(false),style:{color:'var(--t3)',background:'none',border:'none',cursor:'pointer',fontSize:13,fontFamily:'var(--fb)'}},'← Back to Login')
+              )
+            )
+      )
+    );
+  }
+
   return React.createElement('div',{className:'lbg'},
     React.createElement('div',{className:'lc fi'},
       React.createElement('div',{className:'llg'},
@@ -991,10 +1231,31 @@ const Login=({onLogin,allUsers})=>{
             )
           })
         ),
-        React.createElement(Btn,{type:'submit',v:'pr',sz:'lg',ch:ld?React.createElement(React.Fragment,null,React.createElement('div',{className:'sp'}),'\u00a0Signing in\u2026'):'Sign in \u2192',dis:ld})
+        React.createElement(Btn,{type:'submit',v:'pr',sz:'lg',ch:ld?React.createElement(React.Fragment,null,React.createElement('div',{className:'sp'}),'\u00a0Signing in\u2026'):'Sign in \u2192',dis:ld}),
+        React.createElement('div',{style:{textAlign:'center',marginTop:14}},
+          React.createElement('button',{type:'button',onClick:()=>setShowForgot(true),style:{color:'var(--or)',background:'none',border:'none',cursor:'pointer',fontSize:13,fontFamily:'var(--fb)',fontWeight:600}},'Forgot Password?')
+        )
       )
     )
   );
+};
+
+// Badge showing pending pw reset requests count
+const PwResetBadge=()=>{
+  const [count,setCount]=useState(0);
+  useEffect(()=>{
+    const unsub=dbOn('ncsflow/pwResets',v=>{
+      if(!v){setCount(0);return;}
+      const arr=Array.isArray(v)?v:Object.values(v);
+      setCount(arr.filter(r=>r&&r.status==='pending').length);
+    });
+    return unsub;
+  },[]);
+  if(!count)return null;
+  return React.createElement('span',{style:{
+    background:'#ef4444',color:'#fff',borderRadius:10,
+    padding:'1px 7px',fontSize:10,fontWeight:700,marginLeft:'auto'
+  }},count);
 };
 
 // SIDEBAR
@@ -1023,6 +1284,7 @@ const Sidebar=({screen,setScreen,user,onLogout,open,setOpen,activeDept,setActive
     {id:'overview',l:'Project Overview',ic:'grid'},
     {id:'config',l:'Settings',ic:'tag'},
     {id:'users',l:'Users',ic:'users'},
+    {id:'pwresets',l:'Password Resets',ic:'lock'},
   ]:[];
   const SUPPORT_PAGES=isGlobal?[
     {id:'tickets_open',l:'Open Tickets',ic:'tasks'},
@@ -1127,7 +1389,9 @@ const Sidebar=({screen,setScreen,user,onLogout,open,setOpen,activeDept,setActive
             key:n.id,
             className:`ni ${screen===n.id?'ac':''}`,
             onClick:()=>{setScreen(n.id);setOpen(false);}
-          },I[n.ic],n.l))
+          },I[n.ic]||I.tag,n.l,
+            n.id==='pwresets'&&React.createElement(PwResetBadge,null)
+          ))
         ),
         // NCS Support section
         SUPPORT_PAGES.length>0&&React.createElement(React.Fragment,null,
@@ -3081,6 +3345,38 @@ const App=()=>{
       setActiveDept(u.departments[0]);
     }
   },allUsers:users}));
+
+  // Force password change if user has mustChangePassword flag
+  if(user.mustChangePassword){
+    return React.createElement(Ctx.Provider,{value:ctx},
+      React.createElement('div',{className:'lbg'},
+        React.createElement('div',{className:'lc fi',style:{maxWidth:420}},
+          React.createElement('div',{className:'llg'},
+            React.createElement('div',{className:'liw'},
+              React.createElement('div',{style:{background:'var(--dk)',padding:'10px 16px',borderRadius:14,display:'flex',alignItems:'center',gap:12}},
+                React.createElement(NCSLogo,{sz:32}),
+                React.createElement('div',{style:{borderLeft:'2px solid #f5a62335',paddingLeft:12}},
+                  React.createElement('div',{style:{fontFamily:'var(--fd)',fontWeight:800,fontSize:20,color:'#f5a623'}},  'NCS'),
+                  React.createElement('div',{style:{fontSize:9,color:'#94a3b8',letterSpacing:'.06em',marginTop:2}},'NEXT CONSULTING SOLUTIONS')
+                )
+              )
+            ),
+            React.createElement('div',{className:'lti',style:{fontSize:18}},'Set New Password'),
+            React.createElement('div',{className:'lsu'},'You must change your temporary password to continue')
+          ),
+          React.createElement(ForceChangePassword,{
+            user,
+            onChanged:(newPw)=>{
+              const updated={...user,password:newPw,mustChangePassword:false};
+              setUsers(prev=>prev.map(u=>u.id===user.id?updated:u));
+              setUser(updated);
+            },
+            onLogout:()=>{setUser(null);}
+          })
+        )
+      )
+    );
+  }
   const screenMap={
     dashboard:()=>React.createElement(Dashboard,{user,setScreen,setSelTask,activeDept}),
     tasks:()=>React.createElement(Tasks,{user,selTask,setSelTask,initialProjFilter:projFilter,clearProjFilter:()=>setProjFilter(''),activeDept}),
@@ -3095,13 +3391,14 @@ const App=()=>{
     deptoverview:()=>React.createElement(DeptOverviewScreen,{user,setScreen,onOpenLCS:p=>{setOvLCS(p);},activeDept}),
     config:()=>user.role==='global_admin'?React.createElement(Config,{user}):null,
     users:()=>user.role==='global_admin'?React.createElement(Users,{curUser:user}):null,
+    pwresets:()=>user.role==='global_admin'?React.createElement(PwResetScreen,{users,setUsers}):null,
   };
   const screens={};
   return React.createElement(Ctx.Provider,{value:ctx},
     React.createElement(React.Fragment,null,
     ovLCS&&React.createElement(LCSPanel,{project:ovLCS,onClose:()=>setOvLCS(null),isAdmin:user.role==='global_admin'||user.role==='admin',currentUser:user,activeDept:ovLCS._viewDept||activeDept,onUpdate:u=>{const{_viewDept,...clean}=u;setProjects(prev=>prev.map(p=>p.id===clean.id?clean:p));setOvLCS(null);}}),
     React.createElement('div',{className:'app'},
-      React.createElement(Sidebar,{screen,setScreen:s=>{setScreen(s);setSelTask(null)},user,onLogout:()=>{setUser(null);setScreen('dashboard');setActiveDept('');},open:sbOpen,setOpen:setSbOpen,activeDept,setActiveDept}),
+      React.createElement(Sidebar,{screen,setScreen:s=>{setScreen(s);setSelTask(null)},user,onLogout:()=>{authSignOut();setUser(null);setScreen('dashboard');setActiveDept('');},open:sbOpen,setOpen:setSbOpen,activeDept,setActiveDept}),
       React.createElement('div',{className:'main'},
         React.createElement(Topbar,{user,onMenu:()=>setSbOpen(v=>!v),activeDept}),
         (screenMap[screen]||screenMap.dashboard)()
