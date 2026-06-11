@@ -1010,12 +1010,14 @@ const ForceChangePassword=({user,onChanged,onLogout})=>{
 const PwResetScreen=({users,setUsers})=>{
   const [requests,setRequests]=useState([]);
   const [processed,setProcessed]=useState({});
+  const [dismissed,setDismissed]=useState({});
 
   useEffect(()=>{
     const unsub=dbOn('ncsflow/pwResets',v=>{
       if(!v)return setRequests([]);
       const arr=Array.isArray(v)?v:Object.values(v);
-      setRequests(arr.filter(r=>r&&r.status==='pending').sort((a,b)=>new Date(b.requestedAt)-new Date(a.requestedAt)));
+      // Show pending + done (so admin can see temp password)
+      setRequests(arr.filter(r=>r&&(r.status==='pending'||r.status==='done')).sort((a,b)=>new Date(b.requestedAt)-new Date(a.requestedAt)));
     });
     return unsub;
   },[]);
@@ -1024,14 +1026,18 @@ const PwResetScreen=({users,setUsers})=>{
 
   const resetPw=(req)=>{
     const tempPw=genTemp();
-    // Update user in Firebase with temp password and mustChangePassword flag
     setUsers(prev=>prev.map(u=>u.id===req.userId?{...u,password:tempPw,mustChangePassword:true}:u));
-    // Mark request as done
     dbSet('ncsflow/pwResets/'+req.id,{...req,status:'done',resetAt:new Date().toISOString(),tempPassword:tempPw});
     setProcessed(prev=>({...prev,[req.id]:tempPw}));
   };
 
-  if(requests.length===0&&Object.keys(processed).length===0){
+  const dismiss=(reqId)=>{
+    setDismissed(prev=>({...prev,[reqId]:true}));
+    dbSet('ncsflow/pwResets/'+reqId,null);
+  };
+
+  const visible=requests.filter(r=>!dismissed[r.id]);
+  if(visible.length===0){
     return React.createElement('div',{className:'sc fi'},
       React.createElement('div',{className:'sh'},
         React.createElement('div',null,
@@ -1054,8 +1060,8 @@ const PwResetScreen=({users,setUsers})=>{
         React.createElement('div',{className:'ss'},requests.length+' pending request'+(requests.length!==1?'s':''))
       )
     ),
-    [...requests].map(req=>{
-      const done=processed[req.id];
+    visible.map(req=>{
+      const done=processed[req.id]||req.tempPassword;
       return React.createElement('div',{key:req.id,className:'cd',style:{padding:'20px 24px',marginBottom:14}},
         React.createElement('div',{style:{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:16}},
           React.createElement('div',null,
@@ -1091,7 +1097,11 @@ const PwResetScreen=({users,setUsers})=>{
                     style:{background:'#10b981',color:'#fff',border:'none',borderRadius:8,padding:'10px 14px',cursor:'pointer',fontWeight:700,fontSize:13,fontFamily:'var(--fb)',flexShrink:0}
                   },'📋 Copy')
                 ),
-                React.createElement('div',{style:{fontSize:11,color:'#166534',fontStyle:'italic',lineHeight:1.5}},'Share with user — they must change it on first login.')
+                React.createElement('div',{style:{fontSize:11,color:'#166534',fontStyle:'italic',lineHeight:1.5,marginBottom:10}},'Share with user — they must change it on first login.'),
+                React.createElement('button',{
+                  onClick:()=>dismiss(req.id),
+                  style:{fontSize:11.5,fontWeight:600,color:'#dc2626',background:'#fef2f2',border:'1px solid #fecaca',borderRadius:7,padding:'5px 12px',cursor:'pointer',fontFamily:'var(--fb)',width:'100%'}
+                },'✓ Done — Dismiss')
               )
             : React.createElement('button',{
                 onClick:()=>resetPw(req),
