@@ -1681,8 +1681,9 @@ const Topbar=({user,onMenu,activeDept='',onGoToPwResets,onGoToTasks})=>{
   });
   const als=mine.filter(t=>['ov','td'].includes(dStat(t.dueDate,t.status)));
   const todayStr=new Date().toISOString().split('T')[0];
-  // Tasks assigned to current user with no comment today
-  const myNoComment=mine.filter(t=>{
+  // Count MY tasks with no comment today — across ALL depts regardless of active view
+  const myNoComment=tasks.filter(t=>{
+    if(t.status==='completed')return false;
     if(t.assignedTo!==user.id)return false;
     const hasComment=(t.comments||[]).some(c=>c.createdAt&&c.createdAt.startsWith(todayStr));
     return !hasComment;
