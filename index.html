@@ -1494,7 +1494,10 @@ const Sidebar=({screen,setScreen,user,onLogout,open,setOpen,activeDept,setActive
     {id:'completed',l:'Completed Tasks',ic:'check'},
     {id:'projects',l:'Projects',ic:'projects'},
     {id:'deptoverview',l:'Project Status',ic:'grid'},
-    ...(isMgr?[{id:'review',l:'Admin Preview',ic:'grid'}]:[]),
+    ...(user.role==='global_admin'||user.role==='admin'?[{id:'review',l:'Admin Preview',ic:'grid'}]:[]),
+  ];
+  const USER_PAGES=[
+    {id:'changepw',l:'Change my password',ic:'lock'},
   ];
   const ADMIN_PAGES=isGlobal?[
     {id:'newproject',l:'New Project',ic:'plus'},
@@ -1628,6 +1631,11 @@ const Sidebar=({screen,setScreen,user,onLogout,open,setOpen,activeDept,setActive
 
       // User card + logout — always visible at bottom
       React.createElement('div',{className:'sf',style:{flexShrink:0,borderTop:'1px solid #ffffff10'}},
+        USER_PAGES.map(n=>React.createElement('button',{
+          key:n.id,
+          className:`ni ${screen===n.id?'ac':''}`,
+          onClick:()=>{setScreen(n.id);setOpen(false);}
+        },I[n.ic]||I.lock,n.l)),
         React.createElement('div',{className:'uc'},
           React.createElement(Av,{user,sz:'s'}),
           React.createElement('div',{style:{flex:1,minWidth:0}},
@@ -1641,7 +1649,7 @@ const Sidebar=({screen,setScreen,user,onLogout,open,setOpen,activeDept,setActive
   );
 };
 // TOPBAR
-const Topbar=({user,onMenu,activeDept='',onGoToPwResets})=>{
+const Topbar=({user,onMenu,activeDept='',onGoToPwResets,onGoToTasks})=>{
   const {tasks,projects}=useCtx();
   const [dark,setDark]=useState(getDarkMode());
   const [soundOn,setSoundOn]=useState(()=>{try{return localStorage.getItem('ncsflow_sound')!=='0';}catch{return true;}});
@@ -1672,12 +1680,28 @@ const Topbar=({user,onMenu,activeDept='',onGoToPwResets})=>{
     return true;
   });
   const als=mine.filter(t=>['ov','td'].includes(dStat(t.dueDate,t.status)));
+  const todayStr=new Date().toISOString().split('T')[0];
+  // Tasks assigned to current user with no comment today
+  const myNoComment=mine.filter(t=>{
+    if(t.assignedTo!==user.id)return false;
+    const hasComment=(t.comments||[]).some(c=>c.createdAt&&c.createdAt.startsWith(todayStr));
+    return !hasComment;
+  }).length;
 
   return React.createElement('div',{className:'tb'},
     React.createElement('button',{style:{padding:8,background:'none',border:'none',color:'var(--t2)',cursor:'pointer',marginRight:8,display:'flex'},onClick:onMenu},I.menu),
     React.createElement('div',{style:{flex:1}}),
     React.createElement('div',{style:{display:'flex',alignItems:'center',gap:10}},
       als.length>0&&React.createElement('div',{className:'ap'},I.alert,als.length,' alert',als.length>1?'s':''),
+      // No comment today badge
+      myNoComment>0&&React.createElement('div',{
+        style:{display:'flex',alignItems:'center',gap:5,background:'#fffbeb',border:'1.5px solid #f59e0b',borderRadius:8,padding:'5px 10px',cursor:'pointer',fontSize:12,fontWeight:700,color:'#92400e',transition:'all .15s'},
+        onClick:()=>onGoToTasks&&onGoToTasks(),
+        title:'Your tasks with no comment today'
+      },
+        React.createElement('span',null,'🔇'),
+        myNoComment,' task',myNoComment>1?'s':'',' pending'
+      ),
       // Bell: password reset notifications (global admin only)
       user.role==='global_admin'&&React.createElement('button',{
         onClick:()=>onGoToPwResets&&onGoToPwResets(),
@@ -1756,9 +1780,95 @@ const Dashboard=({user,setScreen,setSelTask,activeDept=''})=>{
 };
 
 // TASKS
+// CHANGE PASSWORD SCREEN
+const ChangePasswordScreen=({user,setUser,setUsers})=>{
+  const {users}=useCtx();
+  const [oldPw,setOldPw]=useState('');
+  const [newPw,setNewPw]=useState('');
+  const [confirmPw,setConfirmPw]=useState('');
+  const [showOld,setShowOld]=useState(false);
+  const [showNew,setShowNew]=useState(false);
+  const [showConf,setShowConf]=useState(false);
+  const [err,setErr]=useState('');
+  const [success,setSuccess]=useState(false);
+  const [saving,setSaving]=useState(false);
+
+  const submit=()=>{
+    setErr('');
+    if(!oldPw){setErr('Please enter your current password.');return;}
+    if(oldPw!==user.password){setErr('Current password is incorrect.');return;}
+    if(newPw.length<6){setErr('New password must be at least 6 characters.');return;}
+    if(newPw===oldPw){setErr('New password must be different from current password.');return;}
+    if(newPw!==confirmPw){setErr('New passwords do not match.');return;}
+    setSaving(true);
+    const updated={...user,password:newPw,mustChangePassword:false};
+    setUsers(prev=>prev.map(u=>u.id===user.id?updated:u));
+    setUser(updated);
+    setTimeout(()=>{setSaving(false);setSuccess(true);setOldPw('');setNewPw('');setConfirmPw('');},600);
+  };
+
+  return React.createElement('div',{className:'sc fi',style:{maxWidth:480}},
+    React.createElement('div',{className:'sh'},
+      React.createElement('div',null,
+        React.createElement('div',{className:'st'},'🔑 Change Password'),
+        React.createElement('div',{className:'ss'},'Update your account password')
+      )
+    ),
+    success&&React.createElement('div',{style:{background:'#f0fdf4',border:'2px solid #10b981',borderRadius:12,padding:'16px 20px',marginBottom:20,display:'flex',alignItems:'center',gap:10}},
+      React.createElement('span',{style:{fontSize:24}},'✅'),
+      React.createElement('div',null,
+        React.createElement('div',{style:{fontWeight:700,color:'#059669',fontSize:14}},'Password changed successfully!'),
+        React.createElement('div',{style:{fontSize:12,color:'#166534',marginTop:2}},'Your new password is active.')
+      )
+    ),
+    React.createElement('div',{className:'cd',style:{padding:'24px 28px'}},
+      err&&React.createElement('div',{className:'eb',style:{marginBottom:16}},I.alert,React.createElement('span',null,err)),
+      // Current password
+      React.createElement('div',{className:'frw',style:{marginBottom:16}},
+        React.createElement(Fld,{lbl:'Current Password *',ch:
+          React.createElement('div',{className:'pw'},
+            React.createElement('input',{className:'ip',type:showOld?'text':'password',placeholder:'Enter current password',value:oldPw,onChange:e=>{setOldPw(e.target.value);setErr('');setSuccess(false);}}),
+            React.createElement('button',{type:'button',className:'pt2',onClick:()=>setShowOld(v=>!v)},showOld?I.eyeOff:I.eye)
+          )
+        })
+      ),
+      // New password
+      React.createElement('div',{className:'frw',style:{marginBottom:16}},
+        React.createElement(Fld,{lbl:'New Password *',ch:
+          React.createElement('div',{className:'pw'},
+            React.createElement('input',{className:'ip',type:showNew?'text':'password',placeholder:'Min 6 characters',value:newPw,onChange:e=>{setNewPw(e.target.value);setErr('');setSuccess(false);}}),
+            React.createElement('button',{type:'button',className:'pt2',onClick:()=>setShowNew(v=>!v)},showNew?I.eyeOff:I.eye)
+          )
+        })
+      ),
+      // Confirm new password
+      React.createElement('div',{className:'frw',style:{marginBottom:20}},
+        React.createElement(Fld,{lbl:'Confirm New Password *',ch:
+          React.createElement('div',{className:'pw'},
+            React.createElement('input',{className:'ip',type:showConf?'text':'password',placeholder:'Repeat new password',value:confirmPw,onChange:e=>{setConfirmPw(e.target.value);setErr('');setSuccess(false);}}),
+            React.createElement('button',{type:'button',className:'pt2',onClick:()=>setShowConf(v=>!v)},showConf?I.eyeOff:I.eye)
+          )
+        })
+      ),
+      // Match indicator
+      newPw&&confirmPw&&React.createElement('div',{style:{
+        marginBottom:16,fontSize:12,fontWeight:600,padding:'8px 12px',borderRadius:8,
+        background:newPw===confirmPw?'#f0fdf4':'#fef2f2',
+        color:newPw===confirmPw?'#059669':'#dc2626',
+        border:'1px solid '+(newPw===confirmPw?'#bbf7d0':'#fecaca')
+      }},newPw===confirmPw?'✅ Passwords match':'❌ Passwords do not match'),
+      React.createElement(Btn,{v:'pr',sz:'lg',
+        ch:saving?React.createElement(React.Fragment,null,React.createElement('div',{className:'sp'}),'\u00a0Saving…'):'🔑 Change Password',
+        onClick:submit,
+        dis:!oldPw||!newPw||!confirmPw||saving
+      })
+    )
+  );
+};
+
 const SupervisorReviewScreen=({user,setSelTask,activeDept=''})=>{
   const {tasks,users,projects,setTasks}=useCtx();
-  const isMgr=user.role==='global_admin'||user.role==='admin'||user.role==='co_admin';
+  const isMgr=user.role==='global_admin'||user.role==='admin';
   const [filter,setFilter]=useState('not_reviewed');
   const _vpids=new Set(getVisibleProjects(user,projects,activeDept||'').map(p=>p.id));
   const mine=tasks.filter(t=>{
@@ -3798,7 +3908,8 @@ const App=()=>{
     tickets_done:()=>user.role==='global_admin'?React.createElement(TicketsScreen,{user,setSelTask,filter:'done'}):null,
     mytickets:()=>React.createElement(MyTicketsScreen,{user,setSelTask,activeDept:user.role==='support'?'':activeDept}),
     deptoverview:()=>React.createElement(DeptOverviewScreen,{user,setScreen,onOpenLCS:p=>{setOvLCS(p);},activeDept}),
-    review:()=>(user.role==='global_admin'||user.role==='admin'||user.role==='co_admin')?React.createElement(SupervisorReviewScreen,{user,setSelTask,activeDept}):null,
+    review:()=>(user.role==='global_admin'||user.role==='admin')?React.createElement(SupervisorReviewScreen,{user,setSelTask,activeDept}):null,
+    changepw:()=>React.createElement(ChangePasswordScreen,{user,setUser,setUsers}),
     config:()=>user.role==='global_admin'?React.createElement(Config,{user}):null,
     users:()=>user.role==='global_admin'?React.createElement(Users,{curUser:user}):null,
     pwresets:()=>user.role==='global_admin'?React.createElement(PwResetScreen,{users,setUsers}):null,
@@ -3810,7 +3921,7 @@ const App=()=>{
     React.createElement('div',{className:'app'},
       React.createElement(Sidebar,{screen,setScreen:s=>{setScreen(s);setSelTask(null)},user,onLogout:()=>{authSignOut();setUser(null);setScreen('dashboard');setActiveDept('');},open:sbOpen,setOpen:setSbOpen,activeDept,setActiveDept}),
       React.createElement('div',{className:'main'},
-        React.createElement(Topbar,{user,onMenu:()=>setSbOpen(v=>!v),activeDept,onGoToPwResets:()=>setScreen('pwresets')}),
+        React.createElement(Topbar,{user,onMenu:()=>setSbOpen(v=>!v),activeDept,onGoToPwResets:()=>setScreen('pwresets'),onGoToTasks:()=>setScreen('tasks')}),
         (screenMap[screen]||screenMap.dashboard)()
       ),
       // Global TaskPanel — works from any screen (SupervisorReview, Dashboard, etc.)
