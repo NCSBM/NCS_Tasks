@@ -1,2 +1,2 @@
 /*
-  Content-Security-Policy: default-src 'self' 'unsafe-inline' 'unsafe-eval' https: data: blob:;
+  Content-Security-Policy: default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; connect-src * wss: ws:;
