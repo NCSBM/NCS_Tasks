@@ -390,6 +390,7 @@ const DEPARTMENTS=[
   {id:'realestate', name:'Real Estate',       icon:'🏢', color:'#f5a623'},
   {id:'projects',   name:'Project Mgmt',      icon:'📋', color:'#0891b2'},
   {id:'assets',     name:'Asset Management',  icon:'🏦', color:'#059669'},
+  {id:'powerbi',    name:'Power BI',          icon:'📊', color:'#f2c811'},
 ];
 
 // 5 main LCS phases (Microsoft D365 methodology)
@@ -531,6 +532,7 @@ const dBadge=(due,status)=>{const s=dStat(due,status);if(s==='dn')return{cls:'dd
 const I={
   dashboard:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>,
   tasks:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>,
+  calendar:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
   projects:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>,
   users:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>,
   tag:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>,
@@ -723,6 +725,124 @@ const highlightMentions=(text,users)=>{
   });
 };
 
+// TASK TIME TRACKER
+const TaskTimeTab=({task,user,upd})=>{
+  const [hours,setHours]=useState('');
+  const [minutes,setMinutes]=useState('');
+  const [note,setNote]=useState('');
+  const [editId,setEditId]=useState(null);
+  const [editH,setEditH]=useState('');
+  const [editM,setEditM]=useState('');
+  const timeLog=task.timeLog||[];
+
+  const totalMins=timeLog.reduce((s,e)=>s+(e.hours*60)+(e.minutes||0),0);
+  const totalH=Math.floor(totalMins/60);
+  const totalM=totalMins%60;
+
+  const addEntry=()=>{
+    const h=parseInt(hours)||0;
+    const m=parseInt(minutes)||0;
+    if(h===0&&m===0)return;
+    const entry={
+      id:uid(),
+      date:new Date().toISOString().split('T')[0],
+      hours:h,
+      minutes:m,
+      note:note.trim(),
+      loggedBy:user.id,
+      createdAt:new Date().toISOString()
+    };
+    upd({...task,timeLog:[...timeLog,entry]});
+    setHours('');setMinutes('');setNote('');
+  };
+
+  const deleteEntry=(id)=>upd({...task,timeLog:timeLog.filter(e=>e.id!==id)});
+
+  const saveEdit=(id)=>{
+    upd({...task,timeLog:timeLog.map(e=>e.id===id?{...e,hours:parseInt(editH)||0,minutes:parseInt(editM)||0}:e)});
+    setEditId(null);
+  };
+
+  return React.createElement('div',null,
+    // Total summary
+    React.createElement('div',{style:{background:'#f0fdf4',border:'2px solid #10b981',borderRadius:12,padding:'14px 18px',marginBottom:18,display:'flex',alignItems:'center',justifyContent:'space-between'}},
+      React.createElement('div',null,
+        React.createElement('div',{style:{fontSize:11,fontWeight:700,color:'#059669',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:4}},'Total Time Logged'),
+        React.createElement('div',{style:{fontSize:24,fontWeight:900,fontFamily:'var(--fd)',color:'#059669'}},
+          totalH>0?totalH+'h ':'',(totalM>0||totalH===0)?totalM+'m':'',
+          React.createElement('span',{style:{fontSize:12,fontWeight:500,color:'#166534',marginLeft:8}},timeLog.length+' session'+(timeLog.length!==1?'s':''))
+        )
+      ),
+      React.createElement('div',{style:{fontSize:36}},'⏱️')
+    ),
+
+    // Add new entry
+    React.createElement('div',{className:'cd',style:{padding:'16px 18px',marginBottom:16}},
+      React.createElement('div',{style:{fontSize:12,fontWeight:700,color:'var(--t3)',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:12}},'➕ Log Time'),
+      React.createElement('div',{style:{display:'flex',gap:10,alignItems:'flex-end',flexWrap:'wrap'}},
+        React.createElement('div',{style:{flex:'0 0 100px'}},
+          React.createElement('label',{style:{fontSize:11,fontWeight:700,color:'var(--t3)',display:'block',marginBottom:4}},'HOURS'),
+          React.createElement('input',{className:'ip',type:'number',min:0,max:24,placeholder:'0',value:hours,onChange:e=>setHours(e.target.value),style:{textAlign:'center',fontWeight:700,fontSize:16}})
+        ),
+        React.createElement('div',{style:{flex:'0 0 100px'}},
+          React.createElement('label',{style:{fontSize:11,fontWeight:700,color:'var(--t3)',display:'block',marginBottom:4}},'MINUTES'),
+          React.createElement('input',{className:'ip',type:'number',min:0,max:59,placeholder:'0',value:minutes,onChange:e=>setMinutes(e.target.value),style:{textAlign:'center',fontWeight:700,fontSize:16}})
+        ),
+        React.createElement('div',{style:{flex:1,minWidth:150}},
+          React.createElement('label',{style:{fontSize:11,fontWeight:700,color:'var(--t3)',display:'block',marginBottom:4}},'NOTE (optional)'),
+          React.createElement('input',{className:'ip',type:'text',placeholder:'What did you work on?',value:note,onChange:e=>setNote(e.target.value)})
+        ),
+        React.createElement('button',{
+          onClick:addEntry,
+          disabled:(!hours&&!minutes)||(parseInt(hours)||0)===0&&(parseInt(minutes)||0)===0,
+          style:{padding:'9px 18px',background:'var(--or)',color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:13,cursor:'pointer',fontFamily:'var(--fb)',whiteSpace:'nowrap',opacity:(!hours&&!minutes)?0.5:1}
+        },'Log Time')
+      )
+    ),
+
+    // Time log entries
+    timeLog.length===0
+      ? React.createElement('div',{style:{textAlign:'center',padding:'24px 0',color:'var(--t3)',fontSize:13,fontStyle:'italic'}},'No time logged yet.')
+      : React.createElement('div',null,
+          React.createElement('div',{style:{fontSize:12,fontWeight:700,color:'var(--t3)',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:10}},'Time Log'),
+          // Header row
+          React.createElement('div',{style:{display:'grid',gridTemplateColumns:'32px 1fr 80px 80px 1fr 60px',gap:8,padding:'6px 12px',fontSize:10.5,fontWeight:700,color:'var(--t3)',textTransform:'uppercase',letterSpacing:'.04em',borderBottom:'1px solid var(--bdr)',marginBottom:6}},
+            React.createElement('span',null,'#'),
+            React.createElement('span',null,'Date'),
+            React.createElement('span',{style:{textAlign:'center'}},'Hours'),
+            React.createElement('span',{style:{textAlign:'center'}},'Mins'),
+            React.createElement('span',null,'Note'),
+            React.createElement('span',null,'')
+          ),
+          [...timeLog].reverse().map((e,idx)=>{
+            const isEditing=editId===e.id;
+            return React.createElement('div',{key:e.id,style:{display:'grid',gridTemplateColumns:'32px 1fr 80px 80px 1fr 60px',gap:8,padding:'8px 12px',borderRadius:8,marginBottom:4,background:idx%2===0?'var(--bg)':'transparent',alignItems:'center'}},
+              React.createElement('span',{style:{fontSize:12,fontWeight:700,color:'var(--t3)',textAlign:'center'}},timeLog.length-idx),
+              React.createElement('span',{style:{fontSize:13,fontWeight:600}},new Date(e.date).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})),
+              isEditing
+                ? React.createElement('input',{className:'ip',type:'number',min:0,max:24,value:editH,onChange:ev=>setEditH(ev.target.value),style:{textAlign:'center',padding:'4px',fontSize:13}})
+                : React.createElement('span',{style:{fontSize:13,fontWeight:700,textAlign:'center',color:'var(--or)'}},e.hours+'h'),
+              isEditing
+                ? React.createElement('input',{className:'ip',type:'number',min:0,max:59,value:editM,onChange:ev=>setEditM(ev.target.value),style:{textAlign:'center',padding:'4px',fontSize:13}})
+                : React.createElement('span',{style:{fontSize:13,textAlign:'center',color:'var(--t2)'}},e.minutes+'m'),
+              React.createElement('span',{style:{fontSize:12,color:'var(--t3)',fontStyle:e.note?'normal':'italic'}},e.note||'—'),
+              React.createElement('div',{style:{display:'flex',gap:4}},
+                isEditing
+                  ? React.createElement(React.Fragment,null,
+                      React.createElement('button',{onClick:()=>saveEdit(e.id),style:{fontSize:11,padding:'3px 8px',background:'#10b981',color:'#fff',border:'none',borderRadius:5,cursor:'pointer',fontWeight:700}},'✓'),
+                      React.createElement('button',{onClick:()=>setEditId(null),style:{fontSize:11,padding:'3px 8px',background:'var(--bdr)',color:'var(--t2)',border:'none',borderRadius:5,cursor:'pointer'}},'✕')
+                    )
+                  : React.createElement(React.Fragment,null,
+                      React.createElement('button',{onClick:()=>{setEditId(e.id);setEditH(String(e.hours));setEditM(String(e.minutes||0));},style:{fontSize:11,padding:'3px 8px',background:'var(--bg)',color:'var(--t3)',border:'1px solid var(--bdr)',borderRadius:5,cursor:'pointer'}},'✏️'),
+                      React.createElement('button',{onClick:()=>deleteEntry(e.id),style:{fontSize:11,padding:'3px 8px',background:'#fef2f2',color:'#dc2626',border:'1px solid #fecaca',borderRadius:5,cursor:'pointer'}},'🗑')
+                    )
+              )
+            );
+          })
+        )
+  );
+};
+
 // TASK PANEL
 const TaskPanel=({task:init,onClose,onUpdate,user})=>{
   const {users,taskTypes,projects}=useCtx();
@@ -778,7 +898,7 @@ const TaskPanel=({task:init,onClose,onUpdate,user})=>{
   };
 
   const dir=task.direction?DIRECTIONS[task.direction]:null;
-  const tabs=[{id:'details',l:'Details'},{id:'comments',l:'Comments',cnt:(task.comments||[]).length},{id:'attachments',l:'Files',cnt:(task.attachments||[]).length},{id:'history',l:'History'}];
+  const tabs=[{id:'details',l:'Details'},{id:'comments',l:'Comments',cnt:(task.comments||[]).length},{id:'attachments',l:'Files',cnt:(task.attachments||[]).length},{id:'history',l:'History'},{id:'tasktime',l:'Task Time',cnt:(task.timeLog||[]).length||null}];
 
   return React.createElement('div',{className:'pov'},
     React.createElement('div',{className:'pbk',onClick:onClose}),
@@ -1034,7 +1154,9 @@ const TaskPanel=({task:init,onClose,onUpdate,user})=>{
             )
           );}),
           (!task.auditLog||task.auditLog.length===0)&&React.createElement('div',{style:{textAlign:'center',padding:'28px 0',color:'var(--t3)',fontSize:13}},'No history yet.')
-        )
+        ),
+
+        tab==='tasktime'&&React.createElement(TaskTimeTab,{task,user,upd})
       ),
 
       showDaily&&React.createElement(DailyCommentModal,{task,user,onClose:()=>setShowDaily(false),onSubmit:(body,blocker)=>{submitDaily(body,blocker);setShowDaily(false)}})
@@ -1491,20 +1613,28 @@ const Sidebar=({screen,setScreen,user,onLogout,open,setOpen,activeDept,setActive
   ]:[
     {id:'dashboard',l:'Dashboard',ic:'dashboard'},
     {id:'tasks',l:'Tasks',ic:'tasks'},
+    {id:'meetings',l:'Meetings',ic:'calendar'},
     {id:'completed',l:'Completed Tasks',ic:'check'},
     {id:'projects',l:'Projects',ic:'projects'},
     {id:'deptoverview',l:'Project Status',ic:'grid'},
-    ...(user.role==='global_admin'||user.role==='admin'?[{id:'review',l:'Admin Preview',ic:'grid'}]:[]),
+    ...(user.role==='global_admin'||user.role==='admin'?[
+      {id:'review',l:'Admin Preview',ic:'grid'},
+      {id:'projectcost',l:'Resource Hours',ic:'tag'},
+    ]:[]),
   ];
   const USER_PAGES=[
     {id:'changepw',l:'Change my password',ic:'lock'},
   ];
-  const ADMIN_PAGES=isGlobal?[
-    {id:'newproject',l:'New Project',ic:'plus'},
-    {id:'overview',l:'Project Overview',ic:'grid'},
-    {id:'config',l:'Settings',ic:'tag'},
-    {id:'users',l:'Users',ic:'users'},
-    {id:'pwresets',l:'Password Resets',ic:'lock'},
+  const ADMIN_PAGES=isGlobal||user.role==='admin'?[
+    ...(isGlobal?[
+      {id:'newproject',l:'New Project',ic:'plus'},
+      {id:'overview',l:'Project Overview',ic:'grid'},
+      {id:'hoursmatrix',l:'Hours Matrix',ic:'grid'},
+      {id:'config',l:'Settings',ic:'tag'},
+      {id:'users',l:'Users',ic:'users'},
+      {id:'pwresets',l:'Password Resets',ic:'lock'},
+    ]:[]),
+    {id:'meetingreview',l:'Meeting Review',ic:'calendar'},
   ]:[];
   const SUPPORT_PAGES=isGlobal?[
     {id:'tickets_open',l:'Open Tickets',ic:'tasks'},
@@ -1863,6 +1993,1065 @@ const ChangePasswordScreen=({user,setUser,setUsers})=>{
         onClick:submit,
         dis:!oldPw||!newPw||!confirmPw||saving
       })
+    )
+  );
+};
+
+// MEETINGS SCREEN
+const MEETING_TYPES={
+  onsite:  {l:'On-Site',   ic:'🏢', color:'#3b82f6', bg:'#eff6ff', bdr:'#bfdbfe'},
+  online:  {l:'Online',    ic:'💻', color:'#8b5cf6', bg:'#f5f3ff', bdr:'#ddd6fe'},
+  internal:{l:'Internal',  ic:'👥', color:'#f59e0b', bg:'#fffbeb', bdr:'#fde68a'},
+  microsoft:{l:'Microsoft Ticket',ic:'🎫', color:'#2563eb', bg:'#eff6ff', bdr:'#93c5fd'},
+};
+
+const MeetingsScreen=({user,activeDept=''})=>{
+  const {users,setUsers,projects}=useCtx();
+  const [meetings,setMeetingsRaw]=useState([]);
+  const [view,setView]=useState('week'); // 'week'|'list'
+  const [showNew,setShowNew]=useState(false);
+  const [editMeeting,setEditMeeting]=useState(null);
+  const [filterUser,setFilterUser]=useState('');
+  const [weekOffset,setWeekOffset]=useState(0);
+  const [attendModal,setAttendModal]=useState(null); // meeting to mark attended
+  const [actualH,setActualH]=useState('');
+  const [actualM,setActualM]=useState('');
+  const isMgr=user.role==='global_admin'||user.role==='admin'||user.role==='co_admin';
+
+  // Firebase listeners for meetings
+  useEffect(()=>{
+    const unsub=dbOn('ncsflow/meetings',v=>{
+      if(!v)return setMeetingsRaw([]);
+      setMeetingsRaw(Array.isArray(v)?v:Object.values(v));
+    });
+    return unsub;
+  },[]);
+
+  const saveMeetings=(m)=>{dbSet('ncsflow/meetings',sanitize(m));setMeetingsRaw(m);};
+
+  // My meetings or all if manager with filter — department scoped
+  const isGlobalAdmin=user.role==='global_admin';
+  const visibleMeetings=meetings.filter(m=>{
+    // 1) Department filter — Global Admin sees everything, others see only their dept
+    if(!isGlobalAdmin&&activeDept){
+      if(m.department&&m.department!==activeDept) return false;
+    }
+    // 2) User filter (managers only)
+    if(isMgr&&filterUser) return m.attendees&&m.attendees.includes(filterUser);
+    // 3) Non-managers see only meetings they're in
+    if(!isMgr) return m.attendees&&m.attendees.includes(user.id);
+    return true;
+  });
+
+  // Week view helpers
+  const today=new Date();today.setHours(0,0,0,0);
+  const weekStart=new Date(today);
+  weekStart.setDate(today.getDate()-today.getDay()+weekOffset*7);
+  const weekDays=Array.from({length:7},(_,i)=>{const d=new Date(weekStart);d.setDate(weekStart.getDate()+i);return d;});
+
+  const getMeetingsForDay=(day)=>visibleMeetings.filter(m=>{
+    const md=new Date(m.date);md.setHours(0,0,0,0);
+    return md.getTime()===day.getTime();
+  }).sort((a,b)=>a.startTime.localeCompare(b.startTime));
+
+  // Check if meeting date has passed (yesterday or before)
+  const isPast=(m)=>{
+    try{
+      const [y,mo,d]=m.date.split('-').map(Number);
+      const meetingDay=new Date(y,mo-1,d);
+      meetingDay.setHours(0,0,0,0);
+      const todayStart=new Date();
+      todayStart.setHours(0,0,0,0);
+      return meetingDay<=todayStart; // same day OR past
+    }catch(e){return false;}
+  };
+  const needsAttendance=(m)=>!isCanceled(m)&&isPast(m)&&m.attendees&&m.attendees.includes(user.id)&&!(m.attendance||{})[user.id];
+
+  // Mark attended
+  const markAttended=(m)=>{
+    const h=parseInt(actualH)||0;
+    const mins=parseInt(actualM)||0;
+    const updated=meetings.map(x=>x.id===m.id?{...x,attendance:{...(x.attendance||{}),[user.id]:{attendedAt:new Date().toISOString(),actualHours:h,actualMinutes:mins}}}:x);
+    saveMeetings(updated);
+    setAttendModal(null);setActualH('');setActualM('');
+  };
+
+  const deleteMeeting=(id)=>saveMeetings(meetings.filter(m=>m.id!==id));
+
+  // Cancel meeting — keeps record but marks as canceled
+  const cancelMeeting=(id)=>{
+    const updated=meetings.map(m=>m.id===id?{...m,status:'canceled',canceledBy:user.id,canceledAt:new Date().toISOString()}:m);
+    saveMeetings(updated);
+  };
+  const restoreMeeting=(id)=>{
+    const updated=meetings.map(m=>m.id===id?{...m,status:'active',canceledBy:null,canceledAt:null}:m);
+    saveMeetings(updated);
+  };
+
+  const isCanceled=(m)=>m.status==='canceled';
+  const pendingCount=visibleMeetings.filter(m=>!isCanceled(m)&&needsAttendance(m)).length;
+  const deptInfo=DEPARTMENTS.find(d=>d.id===activeDept);
+
+  return React.createElement('div',{className:'sc fi'},
+    React.createElement('div',{className:'sh'},
+      React.createElement('div',null,
+        React.createElement('div',{style:{display:'flex',alignItems:'center',gap:10}},
+          React.createElement('div',{className:'st'},'📅 Meetings'),
+          deptInfo&&React.createElement('span',{style:{fontSize:12,fontWeight:700,padding:'3px 10px',borderRadius:20,background:deptInfo.color+'18',color:deptInfo.color,border:'1.5px solid '+deptInfo.color+'35'}},deptInfo.icon+' '+deptInfo.name),
+          isGlobalAdmin&&!activeDept&&React.createElement('span',{style:{fontSize:12,fontWeight:700,padding:'3px 10px',borderRadius:20,background:'#8b5cf618',color:'#8b5cf6',border:'1.5px solid #8b5cf635'}},'🌐 All Departments')
+        ),
+        React.createElement('div',{className:'ss'},visibleMeetings.length+' meetings · '+pendingCount+' pending attendance')
+      ),
+      React.createElement(Btn,{v:'pr',sz:'md',ch:React.createElement(React.Fragment,null,I.plus,' New Meeting'),onClick:()=>setShowNew(true)})
+    ),
+
+    // Toolbar
+    React.createElement('div',{style:{display:'flex',gap:10,marginBottom:16,flexWrap:'wrap',alignItems:'center'}},
+      // View toggle
+      React.createElement('div',{style:{display:'flex',gap:0,border:'1.5px solid var(--bdr)',borderRadius:8,overflow:'hidden'}},
+        [{id:'week',l:'📅 Week'},{id:'list',l:'📋 List'}].map(v=>
+          React.createElement('button',{key:v.id,onClick:()=>setView(v.id),style:{padding:'6px 14px',border:'none',cursor:'pointer',fontFamily:'var(--fb)',fontSize:12.5,fontWeight:600,background:view===v.id?'var(--or)':'var(--surf)',color:view===v.id?'#fff':'var(--t2)',transition:'all .15s'}},v.l)
+        )
+      ),
+      // Week navigation
+      view==='week'&&React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8}},
+        React.createElement('button',{onClick:()=>setWeekOffset(v=>v-1),style:{padding:'5px 10px',border:'1.5px solid var(--bdr)',borderRadius:7,background:'var(--surf)',cursor:'pointer',fontWeight:700,color:'var(--t2)'}}, '‹'),
+        React.createElement('button',{onClick:()=>setWeekOffset(0),style:{padding:'5px 12px',border:'1.5px solid var(--bdr)',borderRadius:7,background:weekOffset===0?'var(--or-dim)':'var(--surf)',cursor:'pointer',fontSize:12,fontWeight:600,color:weekOffset===0?'var(--or)':'var(--t2)'}}, 'Today'),
+        React.createElement('button',{onClick:()=>setWeekOffset(v=>v+1),style:{padding:'5px 10px',border:'1.5px solid var(--bdr)',borderRadius:7,background:'var(--surf)',cursor:'pointer',fontWeight:700,color:'var(--t2)'}}, '›'),
+        React.createElement('span',{style:{fontSize:13,fontWeight:600,color:'var(--t2)'}},
+          weekStart.toLocaleDateString('en-GB',{day:'2-digit',month:'short'})+' – '+weekDays[6].toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})
+        )
+      ),
+      // User filter (managers only)
+      isMgr&&React.createElement('select',{className:'fs',value:filterUser,onChange:e=>setFilterUser(e.target.value),style:{marginLeft:'auto'}},
+        React.createElement('option',{value:''},'All Users'),
+        users.filter(u=>u.isActive).map(u=>React.createElement('option',{key:u.id,value:u.id},u.fullName))
+      )
+    ),
+
+    // Pending attendance alert
+    pendingCount>0&&React.createElement('div',{style:{background:'#fffbeb',border:'2px solid #f59e0b',borderRadius:12,padding:'12px 16px',marginBottom:16,display:'flex',alignItems:'center',gap:10}},
+      React.createElement('span',{style:{fontSize:20}},'⏳'),
+      React.createElement('div',null,
+        React.createElement('div',{style:{fontWeight:700,fontSize:13,color:'#92400e'}},pendingCount+' meeting'+(pendingCount>1?'s':'')+' need your attendance confirmation'),
+        React.createElement('div',{style:{fontSize:12,color:'#a16207'}}, 'Please mark attendance and log actual duration')
+      )
+    ),
+
+    // WEEK VIEW
+    view==='week'&&React.createElement('div',{style:{background:'var(--surf)',border:'1.5px solid var(--bdr)',borderRadius:14,overflow:'hidden'}},
+      // Day headers
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(7,1fr)',borderBottom:'1.5px solid var(--bdr)'}},
+        weekDays.map(d=>{
+          const isToday=d.getTime()===today.getTime();
+          return React.createElement('div',{key:d.toISOString(),style:{padding:'10px 8px',textAlign:'center',background:isToday?'var(--or-dim)':'transparent',borderRight:'1px solid var(--bdr)'}},
+            React.createElement('div',{style:{fontSize:10.5,fontWeight:700,color:isToday?'var(--or)':'var(--t3)',textTransform:'uppercase'}},d.toLocaleDateString('en-GB',{weekday:'short'})),
+            React.createElement('div',{style:{fontSize:18,fontWeight:900,fontFamily:'var(--fd)',color:isToday?'var(--or)':'var(--t1)',lineHeight:1.2}},d.getDate())
+          );
+        })
+      ),
+      // Day cells
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(7,1fr)',minHeight:200}},
+        weekDays.map(d=>{
+          const dayMeetings=getMeetingsForDay(d);
+          const isToday=d.getTime()===today.getTime();
+          return React.createElement('div',{key:d.toISOString(),style:{borderRight:'1px solid var(--bdr)',padding:'8px 6px',background:isToday?'#fffbeb08':'transparent',minHeight:120}},
+            dayMeetings.map(m=>{
+              const mt=MEETING_TYPES[m.type]||MEETING_TYPES.internal;
+              const needsAtt=needsAttendance(m);
+              const attended=(m.attendance||{})[user.id];
+              const canceled=isCanceled(m);
+              const canEdit=user.role==='global_admin'||user.role==='admin'||m.createdBy===user.id;
+              return React.createElement('div',{key:m.id,
+                style:{
+                  background:canceled?'#f9fafb':mt.bg,
+                  border:'1.5px solid '+(canceled?'#d1d5db':needsAtt?'#f59e0b':mt.bdr),
+                  borderRadius:7,padding:'5px 7px',marginBottom:5,fontSize:11,
+                  opacity:canceled?0.6:1
+                }
+              },
+                React.createElement('div',{style:{fontWeight:700,color:canceled?'#9ca3af':mt.color,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',textDecoration:canceled?'line-through':'none'}},mt.ic+' '+m.title),
+                React.createElement('div',{style:{color:'#666',marginTop:1}},m.startTime+' – '+m.endTime),
+                canceled
+                  ? React.createElement('div',{style:{color:'#ef4444',fontWeight:700,marginTop:2,fontSize:10}},'🚫 Canceled')
+                  : React.createElement(React.Fragment,null,
+                      needsAtt&&React.createElement('div',{onClick:()=>{setAttendModal(m);setActualH('');setActualM('');},style:{color:'#f59e0b',fontWeight:700,marginTop:2,cursor:'pointer'}},'⏳ Tap to attend'),
+                      attended&&React.createElement('div',{style:{color:'#10b981',fontWeight:700,marginTop:2}},'✅ '+attended.actualHours+'h '+attended.actualMinutes+'m')
+                    ),
+                canEdit&&React.createElement('div',{style:{display:'flex',gap:4,marginTop:4}},
+                  React.createElement('span',{onClick:()=>setEditMeeting(m),style:{fontSize:10,color:canceled?'#9ca3af':mt.color,cursor:'pointer',fontWeight:600,opacity:.8}},'✏️'),
+                  React.createElement('span',{
+                    onClick:()=>canceled?restoreMeeting(m.id):cancelMeeting(m.id),
+                    style:{fontSize:10,color:canceled?'#10b981':'#ef4444',cursor:'pointer',fontWeight:700}
+                  },canceled?'↩️':'🚫')
+                )
+              );
+            })
+          );
+        })
+      )
+    ),
+
+    // LIST VIEW
+    view==='list'&&React.createElement('div',null,
+      visibleMeetings.length===0
+        ? React.createElement('div',{className:'cd',style:{padding:40,textAlign:'center'}},
+            React.createElement('div',{style:{fontSize:40,marginBottom:12}},'📅'),
+            React.createElement('div',{style:{fontSize:15,fontWeight:700,color:'var(--t2)'}},'No meetings yet'),
+            React.createElement('div',{style:{fontSize:13,color:'var(--t3)',marginTop:6}},'Create your first meeting')
+          )
+        : [...visibleMeetings].sort((a,b)=>a.date.localeCompare(b.date)||a.startTime.localeCompare(b.startTime)).map(m=>{
+            const mt=MEETING_TYPES[m.type]||MEETING_TYPES.internal;
+            const needsAtt=needsAttendance(m);
+            const attended=(m.attendance||{})[user.id];
+            const past=isPast(m);
+            const canceled=isCanceled(m);
+            const attendees=users.filter(u=>m.attendees&&m.attendees.includes(u.id));
+            // Calculate planned duration
+            const [sh,sm]=m.startTime.split(':').map(Number);
+            const [eh,em]=m.endTime.split(':').map(Number);
+            const plannedMins=(eh*60+em)-(sh*60+sm);
+            const plannedH=Math.floor(plannedMins/60);
+            const plannedM=plannedMins%60;
+            return React.createElement('div',{key:m.id,className:'cd',style:{
+              padding:'16px 20px',marginBottom:10,
+              borderColor:canceled?'#fca5a5':needsAtt?'#f59e0b':mt.bdr,
+              borderWidth:canceled||needsAtt?2:1.5,
+              opacity:canceled?0.7:1,
+              background:canceled?'#fff5f5':'var(--surf)'
+            }},
+              React.createElement('div',{style:{display:'flex',gap:14,alignItems:'flex-start'}},
+                // Type badge
+                React.createElement('div',{style:{background:canceled?'#fee2e2':mt.bg,border:'1.5px solid '+(canceled?'#fca5a5':mt.bdr),borderRadius:10,padding:'8px 12px',textAlign:'center',minWidth:70,flexShrink:0}},
+                  React.createElement('div',{style:{fontSize:20}}),canceled?'🚫':mt.ic,
+                  React.createElement('div',{style:{fontSize:10,fontWeight:700,color:canceled?'#ef4444':mt.color,marginTop:2}},canceled?'Canceled':mt.l)
+                ),
+                // Info
+                React.createElement('div',{style:{flex:1,minWidth:0}},
+                  React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8,marginBottom:5,flexWrap:'wrap'}},
+                    React.createElement('span',{style:{fontFamily:'var(--fd)',fontSize:15,fontWeight:800,textDecoration:canceled?'line-through':'none',color:canceled?'var(--t3)':'var(--t1)'}},m.title),
+                    canceled&&React.createElement('span',{style:{fontSize:10.5,background:'#fef2f2',color:'#dc2626',border:'1px solid #fecaca',borderRadius:4,padding:'1px 7px',fontWeight:700}},'🚫 Canceled'),
+                    !canceled&&past&&!attended&&React.createElement('span',{style:{fontSize:10.5,background:'#fffbeb',color:'#f59e0b',border:'1px solid #fde68a',borderRadius:4,padding:'1px 7px',fontWeight:700}},'⏳ Pending'),
+                    !canceled&&past&&attended&&React.createElement('span',{style:{fontSize:10.5,background:'#f0fdf4',color:'#10b981',border:'1px solid #bbf7d0',borderRadius:4,padding:'1px 7px',fontWeight:700}},'✅ Attended'),
+                    !canceled&&!past&&React.createElement('span',{style:{fontSize:10.5,background:'#eff6ff',color:'#3b82f6',border:'1px solid #bfdbfe',borderRadius:4,padding:'1px 7px',fontWeight:700}},'📅 Upcoming')
+                  ),
+                  React.createElement('div',{style:{display:'flex',gap:12,flexWrap:'wrap',fontSize:12.5,color:'var(--t2)'}},
+                    React.createElement('span',null,'📅 '+new Date(m.date).toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short',year:'numeric'})),
+                    React.createElement('span',null,'🕐 '+m.startTime+' – '+m.endTime),
+                    React.createElement('span',{style:{textDecoration:canceled?'line-through':'none',color:canceled?'var(--t3)':'inherit'}},'⏱ '+plannedH+'h '+(plannedM>0?plannedM+'m':'')),
+                    m.projectId&&(()=>{const prj=projects.find(p=>p.id===m.projectId);return prj?React.createElement('span',{style:{background:'#f0fdf4',color:'#059669',border:'1px solid #bbf7d0',borderRadius:5,padding:'1px 8px',fontWeight:700,fontSize:11.5}},'📁 '+prj.code):null;})()
+                  ),
+                  m.description&&React.createElement('div',{style:{fontSize:12,color:'var(--t3)',marginTop:6,fontStyle:'italic'}},m.description),
+                  // Attendees
+                  attendees.length>0&&React.createElement('div',{style:{display:'flex',gap:4,marginTop:8,flexWrap:'wrap'}},
+                    attendees.map(u=>React.createElement('div',{key:u.id,style:{display:'flex',alignItems:'center',gap:4,background:'var(--bg)',border:'1px solid var(--bdr)',borderRadius:6,padding:'2px 8px',fontSize:11}},
+                      React.createElement(Av,{user:u,sz:'xs'}),
+                      React.createElement('span',null,u.fullName.split(' ')[0]),
+                      !canceled&&(m.attendance||{})[u.id]&&React.createElement('span',{style:{color:'#10b981',fontWeight:700}},' ✓')
+                    ))
+                  ),
+                  // Actual time if attended
+                  !canceled&&attended&&React.createElement('div',{style:{marginTop:8,fontSize:12,color:'#059669',fontWeight:600}},'Actual time: '+attended.actualHours+'h '+attended.actualMinutes+'m')
+                ),
+                // Actions
+                React.createElement('div',{style:{display:'flex',flexDirection:'column',gap:6,flexShrink:0}},
+                  !canceled&&needsAtt&&React.createElement('button',{onClick:()=>{setAttendModal(m);setActualH('');setActualM('');},style:{background:'#f59e0b',color:'#fff',border:'none',borderRadius:8,padding:'8px 14px',fontWeight:700,fontSize:12,cursor:'pointer',fontFamily:'var(--fb)',whiteSpace:'nowrap'}},'✓ Mark Attended'),
+                  !canceled&&(user.role==='global_admin'||user.role==='admin'||m.createdBy===user.id)&&React.createElement('button',{onClick:()=>setEditMeeting(m),style:{background:'var(--bg)',color:'var(--t2)',border:'1px solid var(--bdr)',borderRadius:8,padding:'5px 12px',fontSize:12,cursor:'pointer',fontFamily:'var(--fb)',fontWeight:600}},'✏️ Edit'),
+                  (user.role==='global_admin'||user.role==='admin'||m.createdBy===user.id)&&React.createElement('button',{
+                    onClick:()=>canceled?restoreMeeting(m.id):cancelMeeting(m.id),
+                    style:{background:canceled?'#f0fdf4':'#fef2f2',color:canceled?'#10b981':'#dc2626',border:'1px solid '+(canceled?'#bbf7d0':'#fecaca'),borderRadius:8,padding:'5px 12px',fontSize:11,cursor:'pointer',fontFamily:'var(--fb)',fontWeight:600}
+                  },canceled?'↩️ Restore':'🚫 Cancel'),
+                  (user.role==='global_admin'||m.createdBy===user.id)&&React.createElement('button',{onClick:()=>deleteMeeting(m.id),style:{background:'#fef2f2',color:'#dc2626',border:'1px solid #fecaca',borderRadius:8,padding:'5px 10px',fontSize:11,cursor:'pointer',fontFamily:'var(--fb)'}},'🗑 Delete')
+                )
+              )
+            );
+          })
+    ),
+
+    // New Meeting Modal
+    showNew&&React.createElement(NewMeetingModal,{user,users,activeDept,onClose:()=>setShowNew(false),onSave:(m)=>{
+      const updated=[...meetings,m];
+      saveMeetings(updated);
+      setShowNew(false);
+    }}),
+
+    // Edit Meeting Modal
+    editMeeting&&React.createElement(NewMeetingModal,{user,users,activeDept,editMode:true,initialData:editMeeting,onClose:()=>setEditMeeting(null),onSave:(m)=>{
+      const updated=meetings.map(x=>x.id===m.id?m:x);
+      saveMeetings(updated);
+      setEditMeeting(null);
+    }}),
+
+    // Attendance Modal
+    attendModal&&React.createElement('div',{className:'mo'},
+      React.createElement('div',{className:'mod',style:{maxWidth:400,padding:'24px'}},
+        React.createElement('div',{style:{fontFamily:'var(--fd)',fontSize:17,fontWeight:800,marginBottom:6}},'✅ Mark as Attended'),
+        React.createElement('div',{style:{fontSize:13,color:'var(--t3)',marginBottom:16}},attendModal.title),
+        React.createElement('div',{style:{background:'#fffbeb',borderRadius:10,padding:'12px',marginBottom:16,fontSize:12.5,color:'#92400e'}},'📅 Planned: '+attendModal.startTime+' – '+attendModal.endTime),
+        React.createElement('div',{style:{fontSize:12,fontWeight:700,color:'var(--t3)',marginBottom:8}},'ACTUAL DURATION'),
+        React.createElement('div',{style:{display:'flex',gap:10,marginBottom:20}},
+          React.createElement('div',{style:{flex:1}},
+            React.createElement('label',{style:{fontSize:11,fontWeight:700,color:'var(--t3)',display:'block',marginBottom:4}},'HOURS'),
+            React.createElement('input',{className:'ip',type:'number',min:0,max:24,placeholder:'0',value:actualH,onChange:e=>setActualH(e.target.value),style:{textAlign:'center',fontWeight:700,fontSize:16}})
+          ),
+          React.createElement('div',{style:{flex:1}},
+            React.createElement('label',{style:{fontSize:11,fontWeight:700,color:'var(--t3)',display:'block',marginBottom:4}},'MINUTES'),
+            React.createElement('input',{className:'ip',type:'number',min:0,max:59,placeholder:'0',value:actualM,onChange:e=>setActualM(e.target.value),style:{textAlign:'center',fontWeight:700,fontSize:16}})
+          )
+        ),
+        React.createElement('div',{style:{display:'flex',gap:10}},
+          React.createElement(Btn,{v:'pr',sz:'lg',ch:'✅ Confirm Attendance',onClick:()=>markAttended(attendModal)}),
+          React.createElement(Btn,{v:'gh',sz:'lg',ch:'Cancel',onClick:()=>{setAttendModal(null);setActualH('');setActualM('');}})
+        )
+      )
+    )
+  );
+};
+
+// NEW / EDIT MEETING MODAL
+const NewMeetingModal=({user,users,onClose,onSave,editMode=false,initialData=null,activeDept=''})=>{
+  const {projects,taskTypes}=useCtx();
+  const today=new Date().toISOString().split('T')[0];
+  const getDefaultTimes=()=>{
+    const now=new Date();
+    const nextHour=new Date(now);
+    nextHour.setHours(now.getHours()+1,0,0,0);
+    const endHour=new Date(nextHour);
+    endHour.setHours(nextHour.getHours()+1);
+    const fmt=(d)=>String(d.getHours()).padStart(2,'0')+':00';
+    return {startTime:fmt(nextHour),endTime:fmt(endHour)};
+  };
+  const {startTime:defStart,endTime:defEnd}=getDefaultTimes();
+  const [form,setForm]=useState(editMode&&initialData?{
+    title:initialData.title||'',
+    type:initialData.type||'onsite',
+    date:initialData.date||today,
+    startTime:initialData.startTime||'09:00',
+    endTime:initialData.endTime||'10:00',
+    description:initialData.description||'',
+    attendees:initialData.attendees||[user.id],
+    projectId:initialData.projectId||'',
+    taskTypeId:initialData.taskTypeId||''
+  }:{
+    title:'',type:'onsite',date:today,
+    startTime:defStart,
+    endTime:defEnd,
+    description:'',attendees:[user.id],
+    projectId:'',
+    taskTypeId:''
+  });
+  const [err,setErr]=useState('');
+
+  // Filter projects by department
+  const deptProjects=projects.filter(p=>p.status==='active'&&(!activeDept||!p.departments||p.departments.length===0||p.departments.includes(activeDept)));
+
+  const toggleAttendee=(uid)=>setForm(f=>({
+    ...f,
+    attendees:f.attendees.includes(uid)?f.attendees.filter(id=>id!==uid):[...f.attendees,uid]
+  }));
+
+  const submit=()=>{
+    if(!form.title.trim()){setErr('Meeting title is required');return;}
+    if(!form.projectId){setErr('Please select a project');return;}
+    if(!form.taskTypeId){setErr('Please select a task type');return;}
+    if(!form.date){setErr('Date is required');return;}
+    if(form.startTime>=form.endTime){setErr('End time must be after start time');return;}
+    if(form.attendees.length===0){setErr('Add at least one attendee');return;}
+    onSave(editMode&&initialData?{
+      ...initialData,...form
+    }:{
+      id:uid(),...form,
+      department:activeDept||'',
+      createdBy:user.id,
+      createdAt:new Date().toISOString(),
+      attendance:{}
+    });
+  };
+
+  return React.createElement('div',{className:'mo',style:{alignItems:'flex-start',padding:0}},
+    React.createElement('div',{style:{
+      position:'fixed',inset:0,background:'var(--surf)',
+      display:'flex',flexDirection:'column',zIndex:1000,
+      overflow:'hidden'
+    }},
+      // Header
+      React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px 28px',borderBottom:'1.5px solid var(--bdr)',flexShrink:0,background:'var(--surf)'}},
+        React.createElement('div',{style:{display:'flex',alignItems:'center',gap:10}},
+          React.createElement('span',{style:{fontSize:22}},'📅'),
+          React.createElement('div',{style:{fontFamily:'var(--fd)',fontSize:20,fontWeight:800}},editMode?'Edit Meeting':'New Meeting')
+        ),
+        React.createElement('button',{onClick:onClose,style:{background:'none',border:'none',cursor:'pointer',color:'var(--t3)',fontSize:20,fontWeight:700}},I.x)
+      ),
+      // Body — scrollable
+      React.createElement('div',{style:{flex:1,overflowY:'auto',padding:'24px 28px'}},
+        React.createElement('div',{style:{maxWidth:800,margin:'0 auto'}},
+          err&&React.createElement('div',{className:'eb',style:{marginBottom:16}},I.alert,React.createElement('span',null,err)),
+
+          // Title
+          React.createElement('div',{className:'frw',style:{marginBottom:20}},
+            React.createElement(Fld,{lbl:'Meeting Title *',ch:React.createElement('input',{className:'ip',style:{fontSize:15},placeholder:'e.g. Weekly sync with client',value:form.title,onChange:e=>setForm({...form,title:e.target.value})})})
+          ),
+
+          // Project + Task Type row — both mandatory
+          React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:20}},
+            React.createElement(Fld,{lbl:'Related Project *',ch:
+              React.createElement('select',{className:'ip fs',style:{width:'100%',borderColor:!form.projectId?'#f59e0b':''},value:form.projectId,onChange:e=>setForm({...form,projectId:e.target.value})},
+                React.createElement('option',{value:''},'— Select project —'),
+                deptProjects.map(p=>React.createElement('option',{key:p.id,value:p.id},p.code+' — '+p.name))
+              )
+            }),
+            React.createElement(Fld,{lbl:'Task Type *',ch:
+              React.createElement('select',{className:'ip fs',style:{width:'100%',borderColor:!form.taskTypeId?'#f59e0b':''},value:form.taskTypeId,onChange:e=>setForm({...form,taskTypeId:e.target.value})},
+                React.createElement('option',{value:''},'— Select type —'),
+                (taskTypes||[]).filter(t=>t.isActive).map(t=>React.createElement('option',{key:t.id,value:t.id},t.name))
+              )
+            })
+          ),
+
+          // Type — 2x2 grid
+          React.createElement('div',{style:{marginBottom:20}},
+            React.createElement('div',{style:{fontSize:11,fontWeight:700,color:'var(--t3)',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:10}},'Meeting Type'),
+            React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10}},
+              Object.entries(MEETING_TYPES).map(([k,mt])=>
+                React.createElement('div',{key:k,onClick:()=>setForm({...form,type:k}),style:{
+                  display:'flex',flexDirection:'column',alignItems:'center',gap:6,padding:'14px 10px',borderRadius:12,cursor:'pointer',transition:'all .15s',
+                  border:'2px solid '+(form.type===k?mt.color:'var(--bdr)'),
+                  background:form.type===k?mt.bg:'var(--surf)'
+                }},
+                  React.createElement('span',{style:{fontSize:24}},mt.ic),
+                  React.createElement('span',{style:{fontSize:12,fontWeight:700,color:form.type===k?mt.color:'var(--t2)',textAlign:'center'}},mt.l)
+                )
+              )
+            )
+          ),
+
+          // Date & Time — 3 cols
+          React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:14,marginBottom:20}},
+            React.createElement(Fld,{lbl:'Date *',ch:React.createElement('input',{className:'ip',type:'date',value:form.date,onChange:e=>setForm({...form,date:e.target.value})})}),
+            React.createElement(Fld,{lbl:'Start Time *',ch:React.createElement('input',{className:'ip',type:'time',value:form.startTime,onChange:e=>setForm({...form,startTime:e.target.value})})}),
+            React.createElement(Fld,{lbl:'End Time *',ch:React.createElement('input',{className:'ip',type:'time',value:form.endTime,onChange:e=>setForm({...form,endTime:e.target.value})})})
+          ),
+
+          // Description
+          React.createElement('div',{className:'frw',style:{marginBottom:20}},
+            React.createElement(Fld,{lbl:'Description / Agenda',ch:React.createElement('textarea',{className:'ip',rows:3,placeholder:'Meeting agenda or description...',value:form.description,onChange:e=>setForm({...form,description:e.target.value})})})
+          ),
+
+          // Attendees — filtered by department
+          React.createElement('div',{style:{marginBottom:24}},
+            React.createElement('div',{style:{fontSize:11,fontWeight:700,color:'var(--t3)',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:10}},
+              'Attendees ('+form.attendees.length+' selected)'
+            ),
+            React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:8}},
+              users.filter(u=>{
+                if(!u.isActive)return false;
+                // Filter by department: show users assigned to this dept, or users with no dept restriction (global_admin / no departments set)
+                if(activeDept){
+                  if(!u.departments||u.departments.length===0)return true; // no dept restriction
+                  return u.departments.includes(activeDept);
+                }
+                return true;
+              }).map(u=>
+                React.createElement('div',{key:u.id,onClick:()=>toggleAttendee(u.id),style:{
+                  display:'flex',alignItems:'center',gap:8,padding:'10px 12px',borderRadius:10,cursor:'pointer',transition:'all .15s',
+                  border:'1.5px solid '+(form.attendees.includes(u.id)?'var(--or)':'var(--bdr)'),
+                  background:form.attendees.includes(u.id)?'var(--or-dim)':'var(--surf)'
+                }},
+                  React.createElement(Av,{user:u,sz:'s'}),
+                  React.createElement('div',{style:{flex:1,minWidth:0}},
+                    React.createElement('div',{style:{fontSize:12.5,fontWeight:form.attendees.includes(u.id)?700:500,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',color:form.attendees.includes(u.id)?'var(--or)':'var(--t1)'}},u.fullName),
+                    React.createElement('div',{style:{fontSize:10.5,color:'var(--t3)'}},ROLE[u.role]?.l||u.role)
+                  ),
+                  form.attendees.includes(u.id)&&React.createElement('span',{style:{color:'var(--or)',fontWeight:700,fontSize:14}},'✓')
+                )
+              )
+            )
+          )
+        )
+      ),
+      // Footer
+      React.createElement('div',{style:{padding:'16px 28px',borderTop:'1.5px solid var(--bdr)',display:'flex',gap:10,justifyContent:'flex-end',background:'var(--surf)',flexShrink:0}},
+        React.createElement(Btn,{v:'gh',sz:'lg',ch:'Cancel',onClick:onClose}),
+        React.createElement(Btn,{v:'pr',sz:'lg',ch:editMode?'💾 Save Changes':'📅 Create Meeting',onClick:submit})
+      )
+    )
+  );
+};
+
+// MEETING REVIEW SCREEN (Admin / Global Admin)
+const MeetingReviewScreen=({user})=>{
+  const {users}=useCtx();
+  const [meetings,setMeetingsRaw]=useState([]);
+  const [filter,setFilter]=useState('not_reviewed');
+  const [filterUser,setFilterUser]=useState('');
+  const [editingTime,setEditingTime]=useState(null); // {meetingId, uid, h, m}
+
+  useEffect(()=>{
+    const unsub=dbOn('ncsflow/meetings',v=>{
+      if(!v)return setMeetingsRaw([]);
+      setMeetingsRaw(Array.isArray(v)?v:Object.values(v));
+    });
+    return unsub;
+  },[]);
+
+  const saveMeetings=(m)=>{dbSet('ncsflow/meetings',sanitize(m));setMeetingsRaw(m);};
+
+  // Flatten: one row per attendee who submitted attendance
+  const rows=[];
+  meetings.forEach(m=>{
+    const attendance=m.attendance||{};
+    Object.entries(attendance).forEach(([uid,att])=>{
+      if(!att)return;
+      const attendee=users.find(u=>u.id===uid);
+      if(!attendee)return;
+      if(filterUser&&uid!==filterUser)return;
+      rows.push({meeting:m,uid,att,attendee});
+    });
+  });
+
+  const filteredRows=rows.filter(r=>{
+    const reviewed=!!r.att.reviewedByAdmin;
+    if(filter==='not_reviewed')return !reviewed;
+    if(filter==='reviewed')return reviewed;
+    return true;
+  }).sort((a,b)=>new Date(b.meeting.date)-new Date(a.meeting.date));
+
+  const notRevCount=rows.filter(r=>!r.att.reviewedByAdmin).length;
+  const revCount=rows.filter(r=>!!r.att.reviewedByAdmin).length;
+
+  const markReviewed=(m,uid)=>{
+    const updated=meetings.map(x=>x.id===m.id?{
+      ...x,attendance:{...x.attendance,[uid]:{...x.attendance[uid],reviewedByAdmin:user.id,reviewedAt:new Date().toISOString()}}
+    }:x);
+    saveMeetings(updated);
+  };
+
+  const undoReview=(m,uid)=>{
+    const updated=meetings.map(x=>x.id===m.id?{
+      ...x,attendance:{...x.attendance,[uid]:{...x.attendance[uid],reviewedByAdmin:null,reviewedAt:null}}
+    }:x);
+    saveMeetings(updated);
+  };
+
+  const saveEditTime=(m,uid,h,mins)=>{
+    const updated=meetings.map(x=>x.id===m.id?{
+      ...x,attendance:{...x.attendance,[uid]:{...x.attendance[uid],actualHours:parseInt(h)||0,actualMinutes:parseInt(mins)||0,editedBy:user.id,editedAt:new Date().toISOString()}}
+    }:x);
+    saveMeetings(updated);
+    setEditingTime(null);
+  };
+
+  const tabs=[
+    {id:'not_reviewed',l:'🔍 Not Reviewed',c:notRevCount},
+    {id:'reviewed',l:'✅ Reviewed',c:revCount},
+    {id:'all',l:'All',c:rows.length},
+  ];
+
+  return React.createElement('div',{className:'sc fi'},
+    React.createElement('div',{className:'sh'},
+      React.createElement('div',null,
+        React.createElement('div',{className:'st'},'🔍 Meeting Review'),
+        React.createElement('div',{className:'ss'},notRevCount+' pending · '+revCount+' reviewed')
+      ),
+      React.createElement('select',{className:'fs',value:filterUser,onChange:e=>setFilterUser(e.target.value)},
+        React.createElement('option',{value:''},'All Users'),
+        users.filter(u=>u.isActive).map(u=>React.createElement('option',{key:u.id,value:u.id},u.fullName))
+      )
+    ),
+
+    // Tabs
+    React.createElement('div',{style:{display:'flex',gap:8,marginBottom:16}},
+      tabs.map(tab=>React.createElement('button',{key:tab.id,onClick:()=>setFilter(tab.id),style:{
+        display:'flex',alignItems:'center',gap:6,padding:'7px 14px',borderRadius:8,cursor:'pointer',
+        fontFamily:'var(--fb)',fontSize:12.5,fontWeight:700,transition:'all .15s',
+        border:'1.5px solid '+(filter===tab.id?'var(--or)':'var(--bdr)'),
+        background:filter===tab.id?'var(--or-dim)':'var(--surf)',
+        color:filter===tab.id?'var(--or)':'var(--t2)'
+      }},tab.l,
+        React.createElement('span',{style:{background:filter===tab.id?'var(--or)':'var(--bdr)',color:filter===tab.id?'#fff':'var(--t3)',borderRadius:10,padding:'1px 7px',fontSize:11}},tab.c)
+      ))
+    ),
+
+    filteredRows.length===0
+      ? React.createElement('div',{className:'cd',style:{padding:40,textAlign:'center'}},
+          React.createElement('div',{style:{fontSize:40,marginBottom:12}},filter==='not_reviewed'?'🎉':'📋'),
+          React.createElement('div',{style:{fontSize:15,fontWeight:700,color:'var(--t2)'}},filter==='not_reviewed'?'All caught up!':'No records found.')
+        )
+      : filteredRows.map(({meeting:m,uid,att,attendee})=>{
+          const mt=MEETING_TYPES[m.type]||MEETING_TYPES.internal;
+          const reviewed=!!att.reviewedByAdmin;
+          const reviewer=att.reviewedByAdmin?users.find(u=>u.id===att.reviewedByAdmin):null;
+          const isEditing=editingTime&&editingTime.meetingId===m.id&&editingTime.uid===uid;
+
+          return React.createElement('div',{key:m.id+uid,className:'cd',style:{
+            padding:'16px 20px',marginBottom:10,
+            borderColor:reviewed?'#10b981':'var(--bdr)',
+            borderWidth:reviewed?2:1.5
+          }},
+            React.createElement('div',{style:{display:'flex',gap:14,alignItems:'center'}},
+              // Type badge
+              React.createElement('div',{style:{background:mt.bg,border:'1.5px solid '+mt.bdr,borderRadius:10,padding:'8px 10px',textAlign:'center',minWidth:56,flexShrink:0}},
+                React.createElement('div',{style:{fontSize:18}},mt.ic),
+                React.createElement('div',{style:{fontSize:9,fontWeight:700,color:mt.color,marginTop:2}},mt.l)
+              ),
+              // Info
+              React.createElement('div',{style:{flex:1,minWidth:0}},
+                React.createElement('div',{style:{fontFamily:'var(--fd)',fontSize:14,fontWeight:800,marginBottom:4}},m.title),
+                React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8,marginBottom:4}},
+                  React.createElement(Av,{user:attendee,sz:'s'}),
+                  React.createElement('span',{style:{fontSize:12.5,fontWeight:600}},attendee.fullName),
+                  React.createElement('span',{style:{fontSize:11,color:'var(--t3)'}},ROLE[attendee.role]?.l)
+                ),
+                React.createElement('div',{style:{fontSize:12,color:'var(--t2)',marginBottom:4}},
+                  '📅 '+new Date(m.date).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})+
+                  ' · 🕐 '+m.startTime+' – '+m.endTime
+                ),
+                // Actual time — editable
+                isEditing
+                  ? React.createElement('div',{style:{display:'flex',gap:8,alignItems:'center',marginTop:6}},
+                      React.createElement('span',{style:{fontSize:12,fontWeight:700,color:'var(--t3)'}}, '⏱ Actual:'),
+                      React.createElement('input',{className:'ip',type:'number',min:0,max:24,value:editingTime.h,onChange:e=>setEditingTime({...editingTime,h:e.target.value}),style:{width:60,textAlign:'center',fontWeight:700},placeholder:'h'}),
+                      React.createElement('span',{style:{fontSize:12,color:'var(--t3)'}},'h'),
+                      React.createElement('input',{className:'ip',type:'number',min:0,max:59,value:editingTime.m,onChange:e=>setEditingTime({...editingTime,m:e.target.value}),style:{width:60,textAlign:'center',fontWeight:700},placeholder:'m'}),
+                      React.createElement('span',{style:{fontSize:12,color:'var(--t3)'}},'m'),
+                      React.createElement('button',{onClick:()=>saveEditTime(m,uid,editingTime.h,editingTime.m),style:{background:'#10b981',color:'#fff',border:'none',borderRadius:7,padding:'5px 12px',fontWeight:700,fontSize:12,cursor:'pointer',fontFamily:'var(--fb)'}},'✓ Save'),
+                      React.createElement('button',{onClick:()=>setEditingTime(null),style:{background:'var(--bg)',color:'var(--t3)',border:'1px solid var(--bdr)',borderRadius:7,padding:'5px 10px',fontSize:12,cursor:'pointer',fontFamily:'var(--fb)'}},'Cancel')
+                    )
+                  : React.createElement('div',{style:{display:'flex',alignItems:'center',gap:10,marginTop:4}},
+                      React.createElement('span',{style:{fontSize:13,fontWeight:700,color:'#059669',background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:7,padding:'3px 10px'}},
+                        '⏱ '+(att.actualHours||0)+'h '+(att.actualMinutes||0)+'m'
+                      ),
+                      att.editedBy&&React.createElement('span',{style:{fontSize:10.5,color:'var(--t3)',fontStyle:'italic'}},'(edited by admin)'),
+                      React.createElement('button',{onClick:()=>setEditingTime({meetingId:m.id,uid,h:String(att.actualHours||0),m:String(att.actualMinutes||0)}),style:{fontSize:11,color:'var(--t3)',background:'none',border:'1px solid var(--bdr)',borderRadius:6,padding:'2px 8px',cursor:'pointer',fontFamily:'var(--fb)'}},'✏️ Edit time')
+                    ),
+                reviewed&&reviewer&&React.createElement('div',{style:{fontSize:11,color:'#059669',marginTop:4}},
+                  '✅ Reviewed by '+reviewer.fullName+' · '+new Date(att.reviewedAt).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})
+                )
+              ),
+              // Review button
+              React.createElement('div',{style:{flexShrink:0}},
+                reviewed
+                  ? React.createElement('div',{style:{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:4}},
+                      React.createElement('span',{style:{fontSize:11,color:'#059669',fontWeight:700,background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:6,padding:'3px 10px'}},'✅ Reviewed'),
+                      React.createElement('button',{onClick:()=>undoReview(m,uid),style:{fontSize:10,color:'var(--t3)',background:'none',border:'none',cursor:'pointer',fontFamily:'var(--fb)',textDecoration:'underline'}},'Undo')
+                    )
+                  : React.createElement('button',{onClick:()=>markReviewed(m,uid),style:{background:'var(--or)',color:'#fff',border:'none',borderRadius:8,padding:'8px 16px',fontWeight:700,fontSize:12,cursor:'pointer',fontFamily:'var(--fb)',whiteSpace:'nowrap'}},'✓ Mark Reviewed')
+              )
+            )
+          );
+        })
+  );
+};
+
+// PROJECT RESOURCE HOURS SCREEN
+const ProjectCostScreen=({user,activeDept=''})=>{
+  const {projects,users,tasks,taskTypes}=useCtx();
+  const [meetings,setMeetingsRaw]=useState([]);
+  const [filterMode,setFilterMode]=useState('week');
+  const [weekOffset,setWeekOffset]=useState(0);
+  const [monthOffset,setMonthOffset]=useState(0);
+
+  useEffect(()=>{
+    const unsub=dbOn('ncsflow/meetings',v=>{
+      if(!v)return setMeetingsRaw([]);
+      setMeetingsRaw(Array.isArray(v)?v:Object.values(v));
+    });
+    return unsub;
+  },[]);
+
+  // ── Bounds ──
+  const getBounds=()=>{
+    if(filterMode==='week'){
+      const now=new Date();
+      const daysSinceFri=((now.getDay()-5)+7)%7;
+      const fri=new Date(now);fri.setDate(now.getDate()-daysSinceFri+(weekOffset*7));fri.setHours(0,0,0,0);
+      const thu=new Date(fri);thu.setDate(fri.getDate()+6);thu.setHours(23,59,59,999);
+      return {start:fri,end:thu};
+    } else {
+      const now=new Date();const mo=now.getMonth()+monthOffset;const y=now.getFullYear();
+      return {start:new Date(y,mo,1),end:new Date(y,mo+1,0,23,59,59,999)};
+    }
+  };
+  const {start:bStart,end:bEnd}=getBounds();
+
+  const inBounds=(dateStr)=>{
+    if(!dateStr)return false;
+    try{const s=dateStr.split('T')[0];const[y,mo,d]=s.split('-').map(Number);const dt=new Date(y,mo-1,d);return dt>=bStart&&dt<=bEnd;}
+    catch(e){return false;}
+  };
+
+  const activeMeetings=meetings.filter(m=>m.status!=='canceled'&&inBounds(m.date));
+
+  const getMtgHours=(projectId,deptId)=>{
+    let mins=0;
+    activeMeetings.filter(m=>m.projectId===projectId&&(!m.department||m.department===deptId)).forEach(m=>{
+      Object.values(m.attendance||{}).forEach(att=>{if(att)mins+=(att.actualHours||0)*60+(att.actualMinutes||0);});
+    });
+    return mins;
+  };
+
+  const getTaskHours=(projectId,deptId)=>{
+    let mins=0;
+    tasks.filter(t=>t.projectId===projectId&&t.status!=='deleted'&&(!t.department||t.department===deptId)).forEach(t=>{
+      (t.timeLog||[]).forEach(e=>{if(inBounds(e.date||e.loggedAt||e.createdAt))mins+=(e.hours||0)*60+(e.minutes||0);});
+    });
+    return mins;
+  };
+
+  const fmtH=(mins)=>{if(!mins)return '0h';const h=Math.floor(mins/60);const m=mins%60;return h>0?(m>0?h+'h '+m+'m':h+'h'):(m+'m');};
+  const fmtDate=(d)=>d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+
+  const visibleDepts=activeDept?DEPARTMENTS.filter(d=>d.id===activeDept):DEPARTMENTS;
+
+  const periodLabel=filterMode==='week'
+    ?(weekOffset===0?'This Week':weekOffset===-1?'Last Week':Math.abs(weekOffset)+(weekOffset<0?' weeks ago':' weeks ahead'))
+    :(monthOffset===0?'This Month':monthOffset===-1?'Last Month':Math.abs(monthOffset)+(monthOffset<0?' months ago':' months ahead'));
+
+  // ── Export to Excel ──
+  const exportExcel=()=>{
+    const toH=(mins)=>mins>0?parseFloat((mins/60).toFixed(2)):0; // decimal hours
+    const rows=[['Project','Department','Meeting Hours','Task Hours','Total Hours','Period']];
+    const period=fmtDate(bStart)+' – '+fmtDate(bEnd);
+    visibleDepts.forEach(dept=>{
+      const deptProjects=projects.filter(p=>p.status==='active'&&p.departments&&p.departments.includes(dept.id));
+      deptProjects.forEach(p=>{
+        const mtg=getMtgHours(p.id,dept.id);
+        const tsk=getTaskHours(p.id,dept.id);
+        rows.push([p.name+' ('+p.code+')',dept.name,toH(mtg),toH(tsk),toH(mtg+tsk),period]);
+      });
+    });
+    const csv=rows.map(r=>r.map(c=>c).join(',')).join('\n');
+    const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+    a.download='Resource_Hours_'+periodLabel.replace(/ /g,'_')+'.csv';a.click();
+  };
+
+  return React.createElement('div',{className:'sc fi'},
+    React.createElement('div',{className:'sh'},
+      React.createElement('div',null,
+        React.createElement('div',{className:'st'},'📊 Project Resource Hours'),
+        React.createElement('div',{className:'ss'},fmtDate(bStart)+' – '+fmtDate(bEnd))
+      ),
+      React.createElement('div',{style:{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}},
+        // Week/Month toggle
+        React.createElement('div',{style:{display:'flex',border:'1.5px solid var(--bdr)',borderRadius:8,overflow:'hidden'}},
+          ['week','month'].map(m=>React.createElement('button',{key:m,onClick:()=>{setFilterMode(m);setWeekOffset(0);setMonthOffset(0);},style:{padding:'5px 13px',border:'none',cursor:'pointer',fontFamily:'var(--fb)',fontSize:12,fontWeight:600,background:filterMode===m?'var(--or)':'var(--surf)',color:filterMode===m?'#fff':'var(--t2)'}},m==='week'?'📅 Week':'🗓 Month'))
+        ),
+        // Navigator
+        React.createElement('button',{onClick:()=>filterMode==='week'?setWeekOffset(v=>v-1):setMonthOffset(v=>v-1),style:{padding:'5px 11px',border:'1.5px solid var(--bdr)',borderRadius:7,background:'var(--surf)',cursor:'pointer',fontWeight:700,color:'var(--t2)'}},'‹'),
+        React.createElement('span',{style:{fontSize:12,fontWeight:700,color:'var(--t1)',minWidth:100,textAlign:'center'}},periodLabel),
+        React.createElement('button',{onClick:()=>filterMode==='week'?setWeekOffset(v=>v+1):setMonthOffset(v=>v+1),style:{padding:'5px 11px',border:'1.5px solid var(--bdr)',borderRadius:7,background:'var(--surf)',cursor:'pointer',fontWeight:700,color:'var(--t2)'}},'›'),
+        (weekOffset!==0||monthOffset!==0)&&React.createElement('button',{onClick:()=>{setWeekOffset(0);setMonthOffset(0);},style:{padding:'5px 9px',border:'1.5px solid var(--or-bdr)',borderRadius:7,background:'var(--or-dim)',cursor:'pointer',fontWeight:700,color:'var(--or)',fontSize:11}},'Today'),
+        // Export
+        React.createElement('button',{onClick:exportExcel,style:{display:'flex',alignItems:'center',gap:5,padding:'6px 13px',border:'1.5px solid #10b981',borderRadius:8,background:'#f0fdf4',color:'#059669',cursor:'pointer',fontWeight:700,fontSize:12,fontFamily:'var(--fb)'}},'⬇️ Export Excel')
+      )
+    ),
+
+    React.createElement('div',{style:{display:'flex',flexDirection:'column',gap:20}},
+      visibleDepts.map(dept=>{
+        const deptProjects=projects.filter(p=>
+          p.status==='active'&&
+          p.departments&&p.departments.includes(dept.id)
+        );
+        if(deptProjects.length===0)return null;
+
+        // Dept totals — scoped to this dept only
+        const deptMtgMins=deptProjects.reduce((s,p)=>s+getMtgHours(p.id,dept.id),0);
+        const deptTaskMins=deptProjects.reduce((s,p)=>s+getTaskHours(p.id,dept.id),0);
+        const deptTotalMins=deptMtgMins+deptTaskMins;
+
+        return React.createElement('div',{key:dept.id,className:'cd',style:{padding:0,overflow:'hidden'}},
+
+          // Dept header
+          React.createElement('div',{style:{
+            display:'flex',alignItems:'center',justifyContent:'space-between',
+            padding:'10px 18px',
+            background:dept.color+'18',
+            borderBottom:'2px solid '+dept.color+'35'
+          }},
+            React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8}},
+              React.createElement('span',{style:{fontSize:16}},dept.icon),
+              React.createElement('span',{style:{fontFamily:'var(--fd)',fontSize:14,fontWeight:800,color:dept.color}},dept.name)
+            ),
+            React.createElement('div',{style:{display:'flex',gap:12,fontSize:12,fontWeight:700,color:'var(--t3)',flexWrap:'wrap',justifyContent:'flex-end'}},
+              React.createElement('span',null,'Meetings: ',React.createElement('span',{style:{color:dept.color}},fmtH(deptMtgMins))),
+              React.createElement('span',null,'Tasks: ',React.createElement('span',{style:{color:dept.color}},fmtH(deptTaskMins))),
+              React.createElement('span',{style:{
+                background:dept.color,color:'#fff',
+                padding:'2px 10px',borderRadius:12,fontWeight:800
+              }},'Total: '+fmtH(deptTotalMins))
+            )
+          ),
+
+          // Table header
+          React.createElement('div',{style:{
+            display:'grid',gridTemplateColumns:'1fr 130px 130px 130px',
+            padding:'7px 18px',
+            background:'var(--card2)',
+            borderBottom:'1px solid var(--bdr)',
+            fontSize:10.5,fontWeight:700,color:'var(--t3)',textTransform:'uppercase',letterSpacing:'.04em'
+          }},
+            React.createElement('span',null,'Project'),
+            React.createElement('span',{style:{textAlign:'center'}},'Meeting Hours'),
+            React.createElement('span',{style:{textAlign:'center'}},'Task Hours'),
+            React.createElement('span',{style:{textAlign:'center'}},'Total Hours')
+          ),
+
+          // Project rows
+          React.createElement('div',null,
+            deptProjects.map((p,i)=>{
+              const mtgMins=getMtgHours(p.id,dept.id);
+              const taskMins=getTaskHours(p.id,dept.id);
+              const totalMins=mtgMins+taskMins;
+              const isLast=i===deptProjects.length-1;
+              return React.createElement('div',{key:p.id,style:{
+                display:'grid',gridTemplateColumns:'1fr 130px 130px 130px',
+                padding:'11px 18px',
+                borderBottom:isLast?'none':'1px solid var(--bdr)',
+                alignItems:'center',
+                background:'var(--surf)'
+              }},
+                // Project name
+                React.createElement('div',null,
+                  React.createElement('div',{style:{fontSize:13,fontWeight:700}},p.name),
+                  React.createElement('div',{style:{fontSize:11,color:'var(--t3)',marginTop:1}},p.code)
+                ),
+                // Meeting hours
+                React.createElement('div',{style:{textAlign:'center'}},
+                  React.createElement('span',{style:{fontSize:14,fontWeight:900,fontFamily:'var(--fd)',color:mtgMins>0?dept.color:'var(--t3)'}},fmtH(mtgMins))
+                ),
+                // Task hours
+                React.createElement('div',{style:{textAlign:'center'}},
+                  React.createElement('span',{style:{fontSize:14,fontWeight:900,fontFamily:'var(--fd)',color:taskMins>0?'#8b5cf6':'var(--t3)'}},fmtH(taskMins))
+                ),
+                // Total hours
+                React.createElement('div',{style:{textAlign:'center'}},
+                  React.createElement('span',{style:{
+                    fontSize:14,fontWeight:900,fontFamily:'var(--fd)',
+                    color:totalMins>0?'#f5a623':'var(--t3)'
+                  }},fmtH(totalMins))
+                )
+              );
+            })
+          ),
+
+          // Dept footer total
+          deptProjects.length>1&&React.createElement('div',{style:{
+            display:'grid',gridTemplateColumns:'1fr 130px 130px 130px',
+            padding:'9px 18px',
+            borderTop:'2px solid '+dept.color+'35',
+            background:dept.color+'10',
+            alignItems:'center'
+          }},
+            React.createElement('span',{style:{fontSize:12,fontWeight:700,color:dept.color}},'Total'),
+            React.createElement('span',{style:{textAlign:'center',fontSize:13,fontWeight:900,fontFamily:'var(--fd)',color:dept.color}},fmtH(deptMtgMins)),
+            React.createElement('span',{style:{textAlign:'center',fontSize:13,fontWeight:900,fontFamily:'var(--fd)',color:'#8b5cf6'}},fmtH(deptTaskMins)),
+            React.createElement('span',{style:{textAlign:'center',fontSize:13,fontWeight:900,fontFamily:'var(--fd)',color:'#f5a623'}},fmtH(deptTotalMins))
+          )
+        );
+      }).filter(Boolean)
+    ),
+
+    // No projects at all
+    DEPARTMENTS.every(d=>!projects.some(p=>p.status==='active'&&p.departments&&p.departments.includes(d.id)))&&
+      React.createElement('div',{className:'cd',style:{padding:40,textAlign:'center'}},
+        React.createElement('div',{style:{fontSize:40,marginBottom:12}},'📁'),
+        React.createElement('div',{style:{fontSize:15,fontWeight:700,color:'var(--t2)'}},'No active projects'),
+        React.createElement('div',{style:{fontSize:13,color:'var(--t3)',marginTop:6}},'Create projects and assign them to departments first')
+      )
+  );
+};
+
+// HOURS MATRIX SCREEN — Global Admin only
+const HoursMatrixScreen=({user})=>{
+  const {projects,tasks}=useCtx();
+  const [meetings,setMeetingsRaw]=useState([]);
+  const [filterMode,setFilterMode]=useState('week'); // 'week'|'month'
+  const [weekOffset,setWeekOffset]=useState(0);
+  const [monthOffset,setMonthOffset]=useState(0);
+
+  useEffect(()=>{
+    const unsub=dbOn('ncsflow/meetings',v=>{
+      if(!v)return setMeetingsRaw([]);
+      setMeetingsRaw(Array.isArray(v)?v:Object.values(v));
+    });
+    return unsub;
+  },[]);
+
+  // ── Date bounds ──
+  const getBounds=()=>{
+    if(filterMode==='week'){
+      const now=new Date();
+      const daysSinceFri=((now.getDay()-5)+7)%7;
+      const fri=new Date(now);fri.setDate(now.getDate()-daysSinceFri+(weekOffset*7));fri.setHours(0,0,0,0);
+      const thu=new Date(fri);thu.setDate(fri.getDate()+6);thu.setHours(23,59,59,999);
+      return {start:fri,end:thu};
+    } else {
+      const now=new Date();
+      const y=now.getFullYear();const mo=now.getMonth()+monthOffset;
+      const start=new Date(y,mo,1);const end=new Date(y,mo+1,0,23,59,59,999);
+      return {start,end};
+    }
+  };
+
+  const {start:bStart,end:bEnd}=getBounds();
+
+  const inBounds=(dateStr)=>{
+    if(!dateStr)return false;
+    try{const s=dateStr.split('T')[0];const[y,mo,d]=s.split('-').map(Number);const dt=new Date(y,mo-1,d);return dt>=bStart&&dt<=bEnd;}
+    catch(e){return false;}
+  };
+
+  const fmtH=(mins)=>{
+    if(!mins)return '—';
+    const h=Math.floor(mins/60);const m=mins%60;
+    return h>0?(m>0?h+'h '+m+'m':h+'h'):(m+'m');
+  };
+
+  const fmtBound=(d)=>d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+
+  // ── Active meetings in range ──
+  const activeMeetings=meetings.filter(m=>m.status!=='canceled'&&inBounds(m.date));
+
+  // ── All active projects ──
+  const allProjects=[...projects].filter(p=>p.status==='active').sort((a,b)=>a.code.localeCompare(b.code));
+
+  // ── Hours per project per dept ──
+  const getMtgMins=(projId,deptId)=>{
+    let mins=0;
+    activeMeetings.filter(m=>m.projectId===projId&&(!m.department||m.department===deptId)).forEach(m=>{
+      Object.values(m.attendance||{}).forEach(att=>{if(att)mins+=(att.actualHours||0)*60+(att.actualMinutes||0);});
+    });
+    return mins;
+  };
+
+  const getTaskMins=(projId,deptId)=>{
+    let mins=0;
+    tasks.filter(t=>t.projectId===projId&&t.status!=='deleted'&&(!t.department||t.department===deptId)).forEach(t=>{
+      (t.timeLog||[]).forEach(e=>{if(inBounds(e.date||e.loggedAt))mins+=(e.hours||0)*60+(e.minutes||0);});
+    });
+    return mins;
+  };
+
+  // ── Only show depts that have at least 1 project ──
+  const activeDepts=DEPARTMENTS.filter(d=>allProjects.some(p=>p.departments&&p.departments.includes(d.id)));
+
+  const periodLabel=filterMode==='week'
+    ?(weekOffset===0?'This Week':weekOffset===-1?'Last Week':weekOffset<0?Math.abs(weekOffset)+' weeks ago':weekOffset+' weeks ahead')
+    :(monthOffset===0?'This Month':monthOffset===-1?'Last Month':monthOffset<0?Math.abs(monthOffset)+' months ago':monthOffset+' months ahead');
+
+  // Export matrix to Excel/CSV
+  const exportExcel=()=>{
+    const toH=(mins)=>mins>0?parseFloat((mins/60).toFixed(2)):0; // decimal hours, 0 if empty
+    const period=fmtBound(bStart)+' – '+fmtBound(bEnd);
+    const headers=['Project',...activeDepts.map(d=>d.name),'TOTAL','Period'];
+    const rows=[headers];
+    allProjects.forEach(p=>{
+      const cells=activeDepts.map(d=>toH(getMtgMins(p.id,d.id)+getTaskMins(p.id,d.id)));
+      const total=toH(activeDepts.reduce((s,d)=>s+getMtgMins(p.id,d.id)+getTaskMins(p.id,d.id),0));
+      rows.push([p.name+' ('+p.code+')',...cells,total,period]);
+    });
+    // Totals row
+    const totals=activeDepts.map(d=>toH(allProjects.reduce((s,p)=>s+getMtgMins(p.id,d.id)+getTaskMins(p.id,d.id),0)));
+    const grandTotal=toH(allProjects.reduce((s,p)=>s+activeDepts.reduce((ss,d)=>ss+getMtgMins(p.id,d.id)+getTaskMins(p.id,d.id),0),0));
+    rows.push(['TOTAL',...totals,grandTotal,period]);
+    const csv=rows.map(r=>r.join(',')).join('\n');
+    const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+    a.download='Hours_Matrix_'+periodLabel.replace(/ /g,'_')+'.csv';a.click();
+  };
+
+  return React.createElement('div',{className:'sc fi'},
+    // Header
+    React.createElement('div',{className:'sh'},
+      React.createElement('div',null,
+        React.createElement('div',{className:'st'},'📋 Hours Matrix'),
+        React.createElement('div',{className:'ss'},'All projects × all departments — '+fmtBound(bStart)+' to '+fmtBound(bEnd))
+      ),
+      // Controls
+      React.createElement('div',{style:{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}},
+        // Week / Month toggle
+        React.createElement('div',{style:{display:'flex',border:'1.5px solid var(--bdr)',borderRadius:8,overflow:'hidden'}},
+          ['week','month'].map(m=>React.createElement('button',{key:m,onClick:()=>{setFilterMode(m);setWeekOffset(0);setMonthOffset(0);},style:{padding:'6px 14px',border:'none',cursor:'pointer',fontFamily:'var(--fb)',fontSize:12,fontWeight:600,background:filterMode===m?'var(--or)':'var(--surf)',color:filterMode===m?'#fff':'var(--t2)'}},m==='week'?'📅 Week':'🗓 Month'))
+        ),
+        // Navigator
+        React.createElement('button',{onClick:()=>filterMode==='week'?setWeekOffset(v=>v-1):setMonthOffset(v=>v-1),style:{padding:'5px 11px',border:'1.5px solid var(--bdr)',borderRadius:7,background:'var(--surf)',cursor:'pointer',fontWeight:700,color:'var(--t2)'}},'‹'),
+        React.createElement('span',{style:{fontSize:12,fontWeight:700,color:'var(--t1)',minWidth:110,textAlign:'center'}},periodLabel),
+        React.createElement('button',{onClick:()=>filterMode==='week'?setWeekOffset(v=>v+1):setMonthOffset(v=>v+1),style:{padding:'5px 11px',border:'1.5px solid var(--bdr)',borderRadius:7,background:'var(--surf)',cursor:'pointer',fontWeight:700,color:'var(--t2)'}},'›'),
+        (weekOffset!==0||monthOffset!==0)&&React.createElement('button',{onClick:()=>{setWeekOffset(0);setMonthOffset(0);},style:{padding:'5px 10px',border:'1.5px solid var(--or-bdr)',borderRadius:7,background:'var(--or-dim)',cursor:'pointer',fontWeight:700,color:'var(--or)',fontSize:11}},'Today'),
+        React.createElement('button',{onClick:exportExcel,style:{display:'flex',alignItems:'center',gap:5,padding:'6px 13px',border:'1.5px solid #10b981',borderRadius:8,background:'#f0fdf4',color:'#059669',cursor:'pointer',fontWeight:700,fontSize:12,fontFamily:'var(--fb)'}},'⬇️ Export Excel')
+      )
+    ),
+
+    // Matrix table
+    React.createElement('div',{style:{overflowX:'auto'}},
+      React.createElement('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:12,background:'var(--surf)',borderRadius:12,overflow:'hidden',border:'1px solid var(--bdr)'}},
+
+        // Head
+        React.createElement('thead',null,
+          React.createElement('tr',null,
+            React.createElement('th',{style:{padding:'10px 14px',textAlign:'left',background:'var(--card2)',borderBottom:'2px solid var(--bdr)',fontWeight:700,fontSize:11,color:'var(--t3)',textTransform:'uppercase',letterSpacing:'.04em',minWidth:180,position:'sticky',left:0,zIndex:2}},'Project'),
+            activeDepts.map(d=>React.createElement('th',{key:d.id,style:{padding:'10px 10px',textAlign:'center',background:'var(--card2)',borderBottom:'2px solid var(--bdr)',fontWeight:700,fontSize:11,color:d.color,minWidth:110,whiteSpace:'nowrap'}},d.icon+' '+d.name)),
+            React.createElement('th',{style:{padding:'10px 10px',textAlign:'center',background:'var(--card2)',borderBottom:'2px solid var(--bdr)',fontWeight:800,fontSize:11,color:'var(--t1)',minWidth:100}},'TOTAL')
+          )
+        ),
+
+        // Body
+        React.createElement('tbody',null,
+          allProjects.map((p,pi)=>{
+            const rowMins=activeDepts.map(d=>getMtgMins(p.id,d.id)+getTaskMins(p.id,d.id));
+            const totalMins=rowMins.reduce((s,v)=>s+v,0);
+            const even=pi%2===0;
+            return React.createElement('tr',{key:p.id,style:{background:even?'var(--surf)':'var(--card2)'}},
+              // Project cell
+              React.createElement('td',{style:{padding:'9px 14px',borderBottom:'1px solid var(--bdr)',position:'sticky',left:0,background:even?'var(--surf)':'var(--card2)',zIndex:1}},
+                React.createElement('div',{style:{fontWeight:700,fontSize:12.5}},p.name),
+                React.createElement('div',{style:{fontSize:10.5,color:'var(--t3)',marginTop:1}},p.code)
+              ),
+              // Dept cells
+              activeDepts.map((d,di)=>{
+                const mins=rowMins[di];
+                const mtg=getMtgMins(p.id,d.id);
+                const tsk=getTaskMins(p.id,d.id);
+                return React.createElement('td',{key:d.id,style:{padding:'9px 10px',textAlign:'center',borderBottom:'1px solid var(--bdr)'}},
+                  mins>0
+                    ? React.createElement('div',null,
+                        React.createElement('div',{style:{fontWeight:800,fontSize:13,fontFamily:'var(--fd)',color:d.color}},fmtH(mins)),
+                        React.createElement('div',{style:{fontSize:9.5,color:'var(--t3)',marginTop:2}},
+                          (mtg>0?'📅'+fmtH(mtg):'')+' '+(tsk>0?'✅'+fmtH(tsk):'')
+                        )
+                      )
+                    : React.createElement('span',{style:{color:'var(--bdr)',fontSize:13}},'—')
+                );
+              }),
+              // Total cell
+              React.createElement('td',{style:{padding:'9px 10px',textAlign:'center',borderBottom:'1px solid var(--bdr)'}},
+                totalMins>0
+                  ? React.createElement('span',{style:{fontWeight:900,fontSize:13,fontFamily:'var(--fd)',color:'#f5a623'}},fmtH(totalMins))
+                  : React.createElement('span',{style:{color:'var(--bdr)',fontSize:13}},'—')
+              )
+            );
+          }),
+
+          // Footer totals row
+          React.createElement('tr',{style:{background:'var(--card2)',borderTop:'2px solid var(--bdr)'}},
+            React.createElement('td',{style:{padding:'9px 14px',fontWeight:800,fontSize:12,color:'var(--t1)',position:'sticky',left:0,background:'var(--card2)',zIndex:1}},'TOTAL'),
+            activeDepts.map(d=>{
+              const total=allProjects.reduce((s,p)=>s+getMtgMins(p.id,d.id)+getTaskMins(p.id,d.id),0);
+              return React.createElement('td',{key:d.id,style:{padding:'9px 10px',textAlign:'center'}},
+                total>0
+                  ?React.createElement('span',{style:{fontWeight:900,fontSize:13,fontFamily:'var(--fd)',color:d.color}},fmtH(total))
+                  :React.createElement('span',{style:{color:'var(--bdr)'}},'—')
+              );
+            }),
+            React.createElement('td',{style:{padding:'9px 10px',textAlign:'center'}},
+              React.createElement('span',{style:{fontWeight:900,fontSize:14,fontFamily:'var(--fd)',color:'#f5a623'}},
+                fmtH(allProjects.reduce((s,p)=>s+activeDepts.reduce((ss,d)=>ss+getMtgMins(p.id,d.id)+getTaskMins(p.id,d.id),0),0))
+              )
+            )
+          )
+        )
+      )
     )
   );
 };
@@ -2613,14 +3802,37 @@ const Projects=({user,setScreen,onViewTasks,activeDept=''})=>{
         React.createElement('div',{style:{display:'flex',gap:10}},
           React.createElement('div',{className:'frw',style:{marginBottom:14}},
           React.createElement('div',{style:{fontSize:11.5,fontWeight:700,color:'var(--t3)',textTransform:'uppercase',letterSpacing:'.06em',marginBottom:8}},'Departments'),
-          React.createElement('div',{style:{display:'flex',flexWrap:'wrap',gap:6,marginBottom:8}},
-            (editForm.depts||[]).length===0
-              ? React.createElement('span',{style:{fontSize:12,color:'var(--t3)',fontStyle:'italic'}},'Visible to all departments')
-              : (editForm.depts||[]).map(d=>{const dept=DEPARTMENTS.find(x=>x.id===d);return dept?React.createElement('span',{key:d,style:{fontSize:12,padding:'4px 10px',borderRadius:6,background:dept.color+'18',color:dept.color,border:'1px solid '+dept.color+'30',fontWeight:600}},dept.icon+' '+dept.name):null;})
+          React.createElement('div',{style:{display:'flex',flexWrap:'wrap',gap:8,marginBottom:4}},
+            DEPARTMENTS.map(dept=>{
+              const isOriginal=(editForm.origDepts||[]).includes(dept.id);
+              const isSelected=(editForm.depts||[]).includes(dept.id);
+              return React.createElement('label',{key:dept.id,style:{
+                display:'flex',alignItems:'center',gap:6,padding:'6px 12px',
+                borderRadius:8,
+                cursor:isOriginal?'not-allowed':'pointer',
+                userSelect:'none',transition:'all .15s',
+                border:'1.5px solid '+(isSelected?dept.color:'var(--bdr)'),
+                background:isSelected?dept.color+'15':'var(--surf)',
+                opacity:isOriginal?1:1
+              }},
+                React.createElement('input',{type:'checkbox',
+                  checked:!!isSelected,
+                  disabled:isOriginal,
+                  onChange:e=>{
+                    if(isOriginal)return; // can't remove existing
+                    const depts=editForm.depts||[];
+                    setEditForm({...editForm,depts:e.target.checked?[...depts,dept.id]:depts.filter(x=>x!==dept.id)});
+                  },
+                  style:{display:'none'}
+                }),
+                React.createElement('span',{style:{fontSize:13}}),dept.icon,
+                React.createElement('span',{style:{fontSize:12,fontWeight:600,color:isSelected?dept.color:'var(--t2)'}},' '+dept.name),
+                isOriginal&&React.createElement('span',{style:{fontSize:10,marginLeft:3,opacity:.5}},'🔒')
+              );
+            })
           ),
-          React.createElement('div',{style:{fontSize:11,color:'#94a3b8',fontStyle:'italic',display:'flex',alignItems:'center',gap:5}},
-            React.createElement('span',null,'🔒'),
-            'To change department assignments, delete and recreate the project'
+          React.createElement('div',{style:{fontSize:11,color:'var(--t3)',fontStyle:'italic',marginTop:4}},
+            '🔒 Existing departments are locked · ✅ You can add new ones'
           )
         ),
         confirmDelete
@@ -3900,6 +5112,7 @@ const App=()=>{
   const screenMap={
     dashboard:()=>React.createElement(Dashboard,{user,setScreen,setSelTask,activeDept}),
     tasks:()=>React.createElement(Tasks,{user,selTask,setSelTask,initialProjFilter:projFilter,clearProjFilter:()=>setProjFilter(''),activeDept}),
+    meetings:()=>React.createElement(MeetingsScreen,{user,activeDept}),
     projects:()=>React.createElement(Projects,{user,setScreen,onViewTasks:(projId)=>{setProjFilter(projId);setScreen('tasks');},activeDept}),
     completed:()=>React.createElement(CompletedScreen,{user,activeDept}),
     overview:()=>user.role==='global_admin'?React.createElement(OverviewScreen,{user,setScreen,onOpenLCS:p=>{setOvLCS(p);},activeDept}):React.createElement('div',null),
@@ -3910,6 +5123,9 @@ const App=()=>{
     mytickets:()=>React.createElement(MyTicketsScreen,{user,setSelTask,activeDept:user.role==='support'?'':activeDept}),
     deptoverview:()=>React.createElement(DeptOverviewScreen,{user,setScreen,onOpenLCS:p=>{setOvLCS(p);},activeDept}),
     review:()=>(user.role==='global_admin'||user.role==='admin')?React.createElement(SupervisorReviewScreen,{user,setSelTask,activeDept}):null,
+    meetingreview:()=>(user.role==='global_admin'||user.role==='admin')?React.createElement(MeetingReviewScreen,{user}):null,
+    hoursmatrix:()=>user.role==='global_admin'?React.createElement(HoursMatrixScreen,{user}):null,
+    projectcost:()=>(user.role==='global_admin'||user.role==='admin')?React.createElement(ProjectCostScreen,{user,activeDept}):null,
     changepw:()=>React.createElement(ChangePasswordScreen,{user,setUser,setUsers}),
     config:()=>user.role==='global_admin'?React.createElement(Config,{user}):null,
     users:()=>user.role==='global_admin'?React.createElement(Users,{curUser:user}):null,
