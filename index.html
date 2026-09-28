@@ -116,8 +116,8 @@ nav.snav{flex:1;padding:12px 10px;display:flex;flex-direction:column;gap:2px;ove
 .dok{background:var(--bg);color:var(--t3);border-color:var(--bdr)}
 /* SCREEN */
 .sc{flex:1;overflow-y:auto;padding:32px}
-.sh{display:flex;align-items:center;justify-content:space-between;margin-bottom:26px}
-.st{font-family:var(--fd);font-size:24px;font-weight:800;color:var(--t1)}
+.sh{display:flex;align-items:center;justify-content:space-between;margin-bottom:26px;padding-bottom:4px}
+.st{font-family:var(--fd);font-size:24px;font-weight:800;color:var(--t1);line-height:1.3;}
 .ss{font-size:13px;color:var(--t3);margin-top:3px}
 /* STATS */
 .sgr{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:26px}
@@ -496,7 +496,13 @@ const canSeeProject=(user,project,activeDept)=>{
 };
 
 // Filter projects user can see
-const getVisibleProjects=(user,projects,activeDept)=>projects.filter(p=>canSeeProject(user,p,activeDept));
+const getVisibleProjects=(user,projects,activeDept)=>
+  projects.filter(p=>canSeeProject(user,p,activeDept))
+    .sort((a,b)=>{
+      const ao=a.sortOrder??999;const bo=b.sortOrder??999;
+      if(ao!==bo)return ao-bo;
+      return a.code.localeCompare(b.code);
+    });
 
 const PRI={1:{l:'Low',d:'#94a3b8'},2:{l:'Medium',d:'#3b82f6'},3:{l:'High',d:'#f59e0b'},4:{l:'Critical',d:'#ef4444'}};
 const ST={to_do:{l:'To Do',d:'#94a3b8',bg:'#f1f5f9',tx:'#64748b'},in_progress:{l:'In Progress',d:'#3b82f6',bg:'#eff6ff',tx:'#2563eb'},under_review:{l:'Under Review',d:'#f59e0b',bg:'#fffbeb',tx:'#d97706'},completed:{l:'Completed',d:'#10b981',bg:'#f0fdf4',tx:'#059669'}};
@@ -562,7 +568,15 @@ const NCSLogo=({sz=28})=>
 const Av=({user,sz='m'})=>{
   const cls=['a0','a1','a2','a3','a4','a5'];
   const c=cls[(user?.id?.charCodeAt(1)||0)%cls.length];
-  const s={s:'avs',m:'avm',l:'avl'}[sz];
+  const s={s:'avs',m:'avm',l:'avl',sm:'avm',xs:'avs'}[sz]||'avm';
+  if(user?.photoURL){
+    return React.createElement('img',{
+      src:user.photoURL,
+      className:`av ${s}`,
+      style:{objectFit:'cover',border:'none'},
+      onError:e=>{e.target.style.display='none';e.target.nextSibling&&(e.target.nextSibling.style.display='flex');}
+    });
+  }
   return React.createElement('div',{className:`av ${s} ${c}`},user?.avatar||'?');
 };
 
@@ -1847,13 +1861,31 @@ const MentionsBell=({user,onOpenTask})=>{
     });
   });
 
-  const unread=myMentions.filter(m=>!seen.includes(m.commentId));
+  const dismissKey='ncsflow_dismissed_mentions_'+user.id;
+  const getDismissed=()=>{try{return JSON.parse(localStorage.getItem(dismissKey)||'[]');}catch{return[];}};
+  const [dismissed,setDismissed]=useState(getDismissed);
+
+  const dismissMention=(e,commentId)=>{
+    e.stopPropagation(); // don't open task
+    const newDismissed=[...dismissed,commentId];
+    try{localStorage.setItem(dismissKey,JSON.stringify(newDismissed));}catch{}
+    setDismissed(newDismissed);
+    // Also mark as seen
+    const newSeen=[...seen,commentId];
+    try{localStorage.setItem(seenKey,JSON.stringify(newSeen));}catch{}
+    setSeen(newSeen);
+  };
+
+  // Filter out dismissed mentions
+  const visibleMentions=myMentions.filter(m=>!dismissed.includes(m.commentId));
   const markAllSeen=()=>{
     const allIds=myMentions.map(m=>m.commentId);
     try{localStorage.setItem(seenKey,JSON.stringify(allIds));}catch{}
     setSeen(allIds);setShowDrop(false);
   };
   const authorName=(uid)=>{const u=users.find(x=>x.id===uid);return u?u.fullName.split(' ')[0]:'Someone';};
+
+  const unread=visibleMentions.filter(m=>!seen.includes(m.commentId));
 
   return React.createElement('div',{style:{position:'relative'}},
     React.createElement('button',{
@@ -1873,36 +1905,45 @@ const MentionsBell=({user,onOpenTask})=>{
       ),
       myMentions.length===0
         ? React.createElement('div',{style:{padding:'28px',textAlign:'center',color:'var(--t3)',fontSize:13}},'No mentions yet 👋')
-        : [...myMentions].reverse().map(m=>{
-            const isUnread=!seen.includes(m.commentId);
-            const taskObj=tasks.find(t=>t.id===m.taskId);
-            const handleClick=()=>{
-              // Mark this mention as seen
-              const newSeen=[...seen,m.commentId];
-              try{localStorage.setItem(seenKey,JSON.stringify(newSeen));}catch{}
-              setSeen(newSeen);
-              setShowDrop(false);
-              if(taskObj&&onOpenTask)onOpenTask(taskObj);
-            };
-            return React.createElement('div',{key:m.commentId,
-              onClick:handleClick,
-              style:{padding:'10px 14px',borderBottom:'1px solid var(--bdr)',background:isUnread?'#8b5cf608':'transparent',cursor:'pointer',transition:'background .1s'}
-            },
-              React.createElement('div',{style:{display:'flex',alignItems:'center',gap:6,marginBottom:4,flexWrap:'wrap'}},
-                React.createElement('span',{style:{fontSize:11.5,fontWeight:700,color:'#8b5cf6'}},'@'+user.fullName.split(' ')[0]),
-                React.createElement('span',{style:{fontSize:11,color:'var(--t3)'}},'in'),
-                React.createElement('span',{style:{fontSize:11.5,fontWeight:700,color:'var(--t1)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:130}},m.taskTitle),
-                isUnread&&React.createElement('span',{style:{width:7,height:7,borderRadius:'50%',background:'#8b5cf6',flexShrink:0,marginLeft:'auto'}})
-              ),
-              React.createElement('div',{style:{fontSize:12,color:'var(--t2)',marginBottom:3,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},m.body),
-              React.createElement('div',{style:{fontSize:10.5,color:'var(--t3)'}},authorName(m.from)+' · '+new Date(m.at).toLocaleDateString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}))
-            );
-          })
+        : visibleMentions.length===0
+          ? React.createElement('div',{style:{padding:'28px',textAlign:'center',color:'var(--t3)',fontSize:13}},'✅ All cleared!')
+          : [...visibleMentions].reverse().map(m=>{
+              const isUnread=!seen.includes(m.commentId);
+              const taskObj=tasks.find(t=>t.id===m.taskId);
+              const handleClick=()=>{
+                const newSeen=[...seen,m.commentId];
+                try{localStorage.setItem(seenKey,JSON.stringify(newSeen));}catch{}
+                setSeen(newSeen);
+                setShowDrop(false);
+                if(taskObj&&onOpenTask)onOpenTask(taskObj);
+              };
+              return React.createElement('div',{key:m.commentId,
+                style:{padding:'10px 14px',borderBottom:'1px solid var(--bdr)',background:isUnread?'#8b5cf608':'transparent',display:'flex',gap:8,alignItems:'flex-start'}
+              },
+                // Main content — clickable
+                React.createElement('div',{onClick:handleClick,style:{flex:1,cursor:'pointer'}},
+                  React.createElement('div',{style:{display:'flex',alignItems:'center',gap:6,marginBottom:4,flexWrap:'wrap'}},
+                    React.createElement('span',{style:{fontSize:11.5,fontWeight:700,color:'#8b5cf6'}},'@'+user.fullName.split(' ')[0]),
+                    React.createElement('span',{style:{fontSize:11,color:'var(--t3)'}},'in'),
+                    React.createElement('span',{style:{fontSize:11.5,fontWeight:700,color:'var(--t1)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:120}},m.taskTitle),
+                    isUnread&&React.createElement('span',{style:{width:7,height:7,borderRadius:'50%',background:'#8b5cf6',flexShrink:0}})
+                  ),
+                  React.createElement('div',{style:{fontSize:12,color:'var(--t2)',marginBottom:3,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},m.body),
+                  React.createElement('div',{style:{fontSize:10.5,color:'var(--t3)'}},authorName(m.from)+' · '+new Date(m.at).toLocaleDateString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}))
+                ),
+                // Dismiss ✕ button
+                React.createElement('button',{
+                  onClick:(e)=>dismissMention(e,m.commentId),
+                  title:'Dismiss',
+                  style:{flexShrink:0,width:22,height:22,borderRadius:6,border:'1px solid var(--bdr)',background:'var(--bg)',color:'var(--t3)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,fontWeight:700,lineHeight:1,marginTop:2}
+                },'×')
+              );
+            })
     )
   );
 };
 // TOPBAR
-const Topbar=({user,onMenu,activeDept='',onGoToPwResets,onGoToTasks,onOpenTask})=>{
+const Topbar=({user,onMenu,activeDept='',onGoToPwResets,onGoToTasks,onOpenTask,onBack})=>{
   const {tasks,projects}=useCtx();
   const [dark,setDark]=useState(getDarkMode());
   const [soundOn,setSoundOn]=useState(()=>{try{return localStorage.getItem('ncsflow_sound')!=='0';}catch{return true;}});
@@ -1944,6 +1985,11 @@ const Topbar=({user,onMenu,activeDept='',onGoToPwResets,onGoToTasks,onOpenTask})
 
   return React.createElement('div',{className:'tb'},
     React.createElement('button',{style:{padding:8,background:'none',border:'none',color:'var(--t2)',cursor:'pointer',marginRight:8,display:'flex'},onClick:onMenu},I.menu),
+      onBack&&React.createElement('button',{
+        onClick:onBack,
+        title:'Go back',
+        style:{display:'flex',alignItems:'center',gap:5,padding:'5px 12px',border:'1.5px solid var(--bdr)',borderRadius:8,background:'var(--surf)',color:'var(--t2)',cursor:'pointer',fontSize:12,fontWeight:700,fontFamily:'var(--fb)',marginRight:8}
+      },'← Back'),
     React.createElement('div',{style:{flex:1}}),
     React.createElement('div',{style:{display:'flex',alignItems:'center',gap:10}},
       als.length>0&&React.createElement('div',{className:'ap'},I.alert,als.length,' alert',als.length>1?'s':''),
@@ -2023,7 +2069,7 @@ const Dashboard=({user,setScreen,setSelTask,activeDept=''})=>{
   const rec=[...mine].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)).slice(0,6);
   const BARS=['#94a3b8','#3b82f6','#f59e0b','#10b981'];
   return React.createElement('div',{className:'sc fi'},
-    React.createElement('div',{className:'sh'},React.createElement('div',null,React.createElement('div',{className:'st'},'Good morning, ',user.fullName.split(' ')[0],' 👋'),React.createElement('div',{className:'ss'},new Date().toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'})))),
+    React.createElement('div',{className:'sh'},React.createElement('div',null,React.createElement('div',{style:{fontFamily:'var(--fd)',fontSize:32,fontWeight:900,color:'var(--t1)',lineHeight:1.4,letterSpacing:'-0.5px'}},'Good morning, ',user.fullName.split(' ')[0],' 👋'),React.createElement('div',{className:'ss',style:{marginTop:6}},new Date().toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'})))),
     ov.length>0&&React.createElement('div',{className:'alr alov',style:{marginBottom:8}},I.alert,React.createElement('span',null,React.createElement('strong',null,ov.length,' overdue task',ov.length>1?'s':''),' — ',ov.slice(0,2).map(t=>t.title.split('—')[0].trim()).join(', '),ov.length>2?'…':'')),
     td.length>0&&React.createElement('div',{className:'alr altd',style:{marginBottom:8}},I.clock,React.createElement('span',null,React.createElement('strong',null,td.length,' task',td.length>1?'s':'',' due today'))),
     pendingDaily.length>0&&React.createElement('div',{className:'alr',style:{background:'#fffbeb',border:'1.5px solid #fde68a',color:'#d97706',marginBottom:16}},React.createElement('span',{style:{fontSize:16}},'⏱️'),React.createElement('span',null,React.createElement('strong',null,pendingDaily.length,' task',pendingDaily.length>1?'s':'',' need daily update'),' — click to open and post today\'s progress')),
@@ -3337,21 +3383,71 @@ const ProjectCostScreen=({user,activeDept=''})=>{
 
   // ── Export to Excel ──
   const exportExcel=()=>{
-    const toH=(mins)=>mins>0?parseFloat((mins/60).toFixed(2)):0; // decimal hours
+    const toH=(mins)=>mins>0?parseFloat((mins/60).toFixed(2)):0;
     const rows=[['Project','Department','Meeting Hours','Task Hours','Total Hours','Period']];
     const period=fmtDate(bStart)+' – '+fmtDate(bEnd);
     visibleDepts.forEach(dept=>{
-      const deptProjects=projects.filter(p=>p.status==='active'&&p.departments&&p.departments.includes(dept.id));
+      const deptProjects=projects.filter(p=>p.status==='active'&&p.departments&&p.departments.includes(dept.id)).sort((a,b)=>{const ao=a.sortOrder??999;const bo=b.sortOrder??999;return ao!==bo?ao-bo:a.code.localeCompare(b.code);});
       deptProjects.forEach(p=>{
         const mtg=getMtgHours(p.id,dept.id);
         const tsk=getTaskHours(p.id,dept.id);
         rows.push([p.name+' ('+p.code+')',dept.name,toH(mtg),toH(tsk),toH(mtg+tsk),period]);
       });
     });
-    const csv=rows.map(r=>r.map(c=>c).join(',')).join('\n');
+    const csv=rows.map(r=>r.join(',')).join('\n');
     const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
     const a=document.createElement('a');a.href=URL.createObjectURL(blob);
     a.download='Resource_Hours_'+periodLabel.replace(/ /g,'_')+'.csv';a.click();
+  };
+
+  // ── Export Project × Employee Matrix ──
+  const exportProjectEmployee=()=>{
+    const toH=(mins)=>mins>0?parseFloat((mins/60).toFixed(2)):0;
+    const period=fmtDate(bStart)+' – '+fmtDate(bEnd);
+    // Get dept users
+    const deptUsers=users.filter(u=>u.isActive&&(!activeDept||!u.departments||u.departments.length===0||u.departments.includes(activeDept)));
+    // Get dept projects
+    const deptProjects=activeDept
+      ? projects.filter(p=>p.status==='active'&&p.departments&&p.departments.includes(activeDept))
+      : projects.filter(p=>p.status==='active');
+
+    // Task hours per user per project
+    const getUserProjTaskMins=(uid,projId)=>{
+      let mins=0;
+      tasks.filter(t=>t.assignedTo===uid&&t.projectId===projId&&t.status!=='deleted').forEach(t=>{
+        (t.timeLog||[]).forEach(e=>{if(inBounds(e.date||e.loggedAt||e.createdAt))mins+=(e.hours||0)*60+(e.minutes||0);});
+      });
+      return mins;
+    };
+
+    // Meeting hours per user per project
+    const getUserProjMtgMins=(uid,projId)=>{
+      let mins=0;
+      activeMeetings.filter(m=>m.projectId===projId&&(m.attendees||[]).includes(uid)).forEach(m=>{
+        const att=(m.attendance||{})[uid];
+        if(att)mins+=(att.actualHours||0)*60+(att.actualMinutes||0);
+        else{const[sh,sm]=(m.startTime||'00:00').split(':').map(Number);const[eh,em]=(m.endTime||'00:00').split(':').map(Number);mins+=Math.max(0,(eh*60+em)-(sh*60+sm));}
+      });
+      return mins;
+    };
+
+    // Build matrix
+    const headers=['Project',...deptUsers.map(u=>u.fullName),'Total Hour'];
+    const rows=[headers];
+    deptProjects.forEach(p=>{
+      const userCols=deptUsers.map(u=>toH(getUserProjTaskMins(u.id,p.id)+getUserProjMtgMins(u.id,p.id)));
+      const total=parseFloat(userCols.reduce((s,v)=>s+v,0).toFixed(2));
+      rows.push([p.name+' ('+p.code+')',...userCols,total]);
+    });
+    // Grand total row
+    const totals=deptUsers.map(u=>parseFloat(deptProjects.reduce((s,p)=>s+toH(getUserProjTaskMins(u.id,p.id)+getUserProjMtgMins(u.id,p.id)),0).toFixed(2)));
+    const grandTotal=parseFloat(totals.reduce((s,v)=>s+v,0).toFixed(2));
+    rows.push(['TOTAL',...totals,grandTotal]);
+
+    const csv=rows.map(r=>r.join(',')).join('\n');
+    const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+    a.download='Project_Employee_Hours_'+periodLabel.replace(/ /g,'_')+'.csv';a.click();
   };
 
   return React.createElement('div',{className:'sc fi'},
@@ -3370,8 +3466,9 @@ const ProjectCostScreen=({user,activeDept=''})=>{
         React.createElement('span',{style:{fontSize:12,fontWeight:700,color:'var(--t1)',minWidth:100,textAlign:'center'}},periodLabel),
         React.createElement('button',{onClick:()=>filterMode==='week'?setWeekOffset(v=>v+1):setMonthOffset(v=>v+1),style:{padding:'5px 11px',border:'1.5px solid var(--bdr)',borderRadius:7,background:'var(--surf)',cursor:'pointer',fontWeight:700,color:'var(--t2)'}},'›'),
         (weekOffset!==0||monthOffset!==0)&&React.createElement('button',{onClick:()=>{setWeekOffset(0);setMonthOffset(0);},style:{padding:'5px 9px',border:'1.5px solid var(--or-bdr)',borderRadius:7,background:'var(--or-dim)',cursor:'pointer',fontWeight:700,color:'var(--or)',fontSize:11}},'Today'),
-        // Export
-        React.createElement('button',{onClick:exportExcel,style:{display:'flex',alignItems:'center',gap:5,padding:'6px 13px',border:'1.5px solid #10b981',borderRadius:8,background:'#f0fdf4',color:'#059669',cursor:'pointer',fontWeight:700,fontSize:12,fontFamily:'var(--fb)'}},'⬇️ Export Excel')
+        // Export buttons
+        React.createElement('button',{onClick:exportExcel,style:{display:'flex',alignItems:'center',gap:5,padding:'6px 13px',border:'1.5px solid #10b981',borderRadius:8,background:'#f0fdf4',color:'#059669',cursor:'pointer',fontWeight:700,fontSize:12,fontFamily:'var(--fb)'}},'⬇️ Export'),
+        React.createElement('button',{onClick:exportProjectEmployee,style:{display:'flex',alignItems:'center',gap:5,padding:'6px 13px',border:'1.5px solid #3b82f6',borderRadius:8,background:'#eff6ff',color:'#2563eb',cursor:'pointer',fontWeight:700,fontSize:12,fontFamily:'var(--fb)'}},'👤 Project × Employee')
       )
     ),
 
@@ -3641,7 +3738,7 @@ const HoursMatrixScreen=({user})=>{
   const activeMeetings=meetings.filter(m=>m.status!=='canceled'&&inBounds(m.date));
 
   // ── All active projects ──
-  const allProjects=[...projects].filter(p=>p.status==='active').sort((a,b)=>a.code.localeCompare(b.code));
+  const allProjects=[...projects].filter(p=>p.status==='active').sort((a,b)=>{const ao=a.sortOrder??999;const bo=b.sortOrder??999;return ao!==bo?ao-bo:a.code.localeCompare(b.code);});
 
   // ── Hours per project per dept ──
   const getMtgMins=(projId,deptId)=>{
@@ -4386,15 +4483,15 @@ const Projects=({user,setScreen,onViewTasks,activeDept=''})=>{
   const [showNew,setShowNew]=useState(false);
   const [lcsPrj,setLcsPrj]=useState(null);
   const [editPrj,setEditPrj]=useState(null);
-  const [editForm,setEditForm]=useState({code:'',name:'',client:'',status:'active',depts:[],origDepts:[]});
+  const [editForm,setEditForm]=useState({code:'',name:'',client:'',status:'active',depts:[],origDepts:[],sortOrder:0});
   const [confirmDelete,setConfirmDelete]=useState(false);
   const initialDepts=activeDept?[activeDept]:[];
   const [form,setForm]=useState({code:'',name:'',client:'',depts:initialDepts});
   const [phaseFilter,setPhaseFilter]=useState(0);
   const [statusFilter,setStatusFilter]=useState('');
-  const create=()=>{if(!form.code||!form.name)return;setProjects(prev=>[{id:uid(),code:form.code,name:form.name,clientName:form.client,status:'active',members:[user.id],phases:mkPhases(),departments:form.depts||[]},...prev]);setShowNew(false);setForm({code:'',name:'',client:'',depts:[]});};
-  const openEdit=p=>{setEditPrj(p);setConfirmDelete(false);setEditForm({code:p.code,name:p.name,client:p.clientName||'',status:p.status,depts:p.departments||[],origDepts:p.departments||[]});};
-  const saveEdit=()=>{if(!editForm.code||!editForm.name)return;setProjects(prev=>prev.map(p=>p.id===editPrj.id?{...p,code:editForm.code,name:editForm.name,clientName:editForm.client,status:editForm.status,departments:editForm.depts||[]}:p));setEditPrj(null);};
+  const create=()=>{if(!form.code||!form.name)return;setProjects(prev=>[{id:uid(),code:form.code,name:form.name,clientName:form.client,status:'active',members:[user.id],phases:mkPhases(),departments:form.depts||[],sortOrder:0},...prev]);setShowNew(false);setForm({code:'',name:'',client:'',depts:[]});};
+  const openEdit=p=>{setEditPrj(p);setConfirmDelete(false);setEditForm({code:p.code,name:p.name,client:p.clientName||'',status:p.status,depts:p.departments||[],origDepts:p.departments||[],sortOrder:p.sortOrder||0});};
+  const saveEdit=()=>{if(!editForm.code||!editForm.name)return;setProjects(prev=>prev.map(p=>p.id===editPrj.id?{...p,code:editForm.code,name:editForm.name,clientName:editForm.client,status:editForm.status,departments:editForm.depts||[],sortOrder:parseInt(editForm.sortOrder)||0}:p));setEditPrj(null);};
   const deleteProject=()=>{setProjects(prev=>prev.filter(p=>p.id!==editPrj.id));setEditPrj(null);setConfirmDelete(false);};
   return React.createElement('div',{className:'sc fi'},
     React.createElement('div',{className:'sh'},
@@ -4544,8 +4641,9 @@ const Projects=({user,setScreen,onViewTasks,activeDept=''})=>{
           React.createElement(Fld,{lbl:'Code *',ch:React.createElement('input',{className:'ip',type:'text',placeholder:'FLYAKEED-25',value:editForm.code,onChange:e=>setEditForm({...editForm,code:e.target.value})})}),
           React.createElement(Fld,{lbl:'Name *',ch:React.createElement('input',{className:'ip',type:'text',placeholder:'FlyAkeed Year End 2025',value:editForm.name,onChange:e=>setEditForm({...editForm,name:e.target.value})})})
         ),
-        React.createElement('div',{className:'frw',style:{marginBottom:14}},
-          React.createElement(Fld,{lbl:'Client Name',ch:React.createElement('input',{className:'ip',type:'text',placeholder:'FlyAkeed Travel',value:editForm.client,onChange:e=>setEditForm({...editForm,client:e.target.value})})})
+        React.createElement('div',{className:'fgr',style:{marginBottom:14}},
+          React.createElement(Fld,{lbl:'Client Name',ch:React.createElement('input',{className:'ip',type:'text',placeholder:'FlyAkeed Travel',value:editForm.client,onChange:e=>setEditForm({...editForm,client:e.target.value})})}),
+          React.createElement(Fld,{lbl:'Sort Order',ch:React.createElement('input',{className:'ip',type:'number',min:0,placeholder:'0',value:editForm.sortOrder,onChange:e=>setEditForm({...editForm,sortOrder:e.target.value}),style:{textAlign:'center',fontWeight:700}})})
         ),
         React.createElement('div',{className:'frw',style:{marginBottom:20}},
           React.createElement(Fld,{lbl:'Status',ch:
@@ -4667,16 +4765,16 @@ const Users=({curUser})=>{
   const [editPwChanged,setEditPwChanged]=useState(false);
   const [editShowCurPw,setEditShowCurPw]=useState(false);
   const [editShowNewPw,setEditShowNewPw]=useState(false);
-  const openEdit=u=>{setEditUser(u);setEditPwChanged(false);setEditForm({name:u.fullName,email:u.email,username:u.username,currentPw:u.password||'',newPw:'',depts:u.departments||[]});};
+  const openEdit=u=>{setEditUser(u);setEditPwChanged(false);setEditForm({name:u.fullName,email:u.email,username:u.username,currentPw:u.password||'',newPw:'',depts:u.departments||[],photoURL:u.photoURL||''});};
   const saveEdit=()=>{
     if(!editForm.name||!editForm.email||!editForm.username)return;
     const pwChanged=!!(editForm.newPw&&editForm.newPw!==editForm.currentPw);
-    setUsers(prev=>prev.map(u=>u.id===editUser.id?{...u,fullName:editForm.name,email:editForm.email,username:editForm.username,avatar:editForm.name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase(),departments:editForm.depts||[],...(editForm.newPw?{password:editForm.newPw}:{})}:u));
+    setUsers(prev=>prev.map(u=>u.id===editUser.id?{...u,fullName:editForm.name,email:editForm.email,username:editForm.username,avatar:editForm.name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase(),departments:editForm.depts||[],photoURL:editForm.photoURL||u.photoURL||'',...(editForm.newPw?{password:editForm.newPw}:{})}:u));
     if(pwChanged){setEditPwChanged(true);setTimeout(()=>{setEditUser(null);setEditPwChanged(false);},2200);}else{setEditUser(null);}};
   const create=()=>{
     if(!form.name||!form.email||!form.username||!form.pw)return;
     const ini=form.name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
-    setUsers(prev=>[...prev,{id:uid(),fullName:form.name,email:form.email,username:form.username,role:form.role,isActive:true,avatar:ini,lastLogin:null,password:form.pw,departments:form.depts||[]}]);
+    setUsers(prev=>[...prev,{id:uid(),fullName:form.name,email:form.email,username:form.username,role:form.role,isActive:true,avatar:ini,lastLogin:null,password:form.pw,departments:form.depts||[],photoURL:''}]);
     setShowNew(false);
     setForm({name:'',email:'',username:'',role:'team_member',pw:'',depts:[]});
   };
@@ -4742,6 +4840,37 @@ const Users=({curUser})=>{
     ),
     editUser&&React.createElement(Mod,{open:true,onClose:()=>setEditUser(null),title:'Edit User — '+editUser.fullName,ch:
       React.createElement('div',null,
+
+        // Profile photo upload
+        React.createElement('div',{className:'frw',style:{marginBottom:16}},
+          React.createElement('div',{style:{display:'flex',alignItems:'center',gap:14}},
+            // Current photo preview
+            editForm.photoURL
+              ? React.createElement('img',{src:editForm.photoURL,style:{width:64,height:64,borderRadius:'50%',objectFit:'cover',border:'2px solid var(--bdr)'}})
+              : React.createElement('div',{style:{width:64,height:64,borderRadius:'50%',background:'#6366f1',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,fontWeight:800,color:'#fff'}},editUser.avatar||'?'),
+            React.createElement('div',null,
+              React.createElement('div',{style:{fontSize:12,fontWeight:700,color:'var(--t3)',marginBottom:6}},'PROFILE PHOTO'),
+              React.createElement('label',{style:{display:'inline-flex',alignItems:'center',gap:6,padding:'6px 14px',background:'var(--bg)',border:'1.5px solid var(--bdr)',borderRadius:8,cursor:'pointer',fontSize:12,fontWeight:600,color:'var(--t2)'}},
+                '📷 Upload Photo',
+                React.createElement('input',{type:'file',accept:'image/*',style:{display:'none'},
+                  onChange:e=>{
+                    const file=e.target.files[0];
+                    if(!file)return;
+                    if(file.size>2*1024*1024){alert('Max 2MB');return;}
+                    const reader=new FileReader();
+                    reader.onload=ev=>setEditForm({...editForm,photoURL:ev.target.result});
+                    reader.readAsDataURL(file);
+                  }
+                })
+              ),
+              editForm.photoURL&&React.createElement('button',{
+                onClick:()=>setEditForm({...editForm,photoURL:''}),
+                style:{marginLeft:8,fontSize:11,color:'#dc2626',background:'none',border:'none',cursor:'pointer',fontWeight:600}
+              },'✕ Remove')
+            )
+          )
+        ),
+
         React.createElement('div',{className:'frw'},React.createElement(Fld,{lbl:'Full Name *',ch:React.createElement('input',{className:'ip',type:'text',value:editForm.name,onChange:e=>setEditForm({...editForm,name:e.target.value})})})),
         React.createElement('div',{className:'fgr',style:{marginBottom:14}},
           React.createElement(Fld,{lbl:'Email *',ch:React.createElement('input',{type:'email',className:'ip',value:editForm.email,onChange:e=>setEditForm({...editForm,email:e.target.value})})}),
@@ -5758,6 +5887,19 @@ const App=()=>{
     try{if(u)sessionStorage.setItem('ncsflow_user',JSON.stringify(u));else sessionStorage.removeItem('ncsflow_user');}catch{}
   };
   const [screen,setScreen]=useState('dashboard');
+  const [screenHistory,setScreenHistory]=useState([]);
+
+  // Navigate with history tracking
+  const goTo=(s)=>{
+    setScreenHistory(prev=>[...prev,screen]);
+    setScreen(s);
+  };
+  const goBack=()=>{
+    if(screenHistory.length===0)return;
+    const prev=screenHistory[screenHistory.length-1];
+    setScreenHistory(h=>h.slice(0,-1));
+    setScreen(prev);
+  };
   const [selTask,setSelTask]=useState(null);
   const [projFilter,setProjFilter]=useState('');
   const [ovLCS,setOvLCS]=useState(null);
@@ -5942,7 +6084,7 @@ const App=()=>{
     React.createElement('div',{className:'app'},
       React.createElement(Sidebar,{screen,setScreen:s=>{setScreen(s);setSelTask(null)},user,onLogout:()=>{authSignOut();setUser(null);setScreen('dashboard');setActiveDept('');},open:sbOpen,setOpen:setSbOpen,activeDept,setActiveDept}),
       React.createElement('div',{className:'main'},
-        React.createElement(Topbar,{user,onMenu:()=>setSbOpen(v=>!v),activeDept,onGoToPwResets:()=>setScreen('pwresets'),onGoToTasks:()=>setScreen('tasks'),onOpenTask:(t)=>{setSelTask(t);setScreen('tasks');}}),
+        React.createElement(Topbar,{user,onMenu:()=>setSbOpen(v=>!v),activeDept,onGoToPwResets:()=>setScreen('pwresets'),onGoToTasks:()=>setScreen('tasks'),onOpenTask:(t)=>{setSelTask(t);setScreen('tasks');},onBack:screenHistory.length>0?goBack:null}),
         (screenMap[screen]||screenMap.dashboard)()
       ),
       // Global TaskPanel — works from any screen (SupervisorReview, Dashboard, etc.)
