@@ -534,6 +534,14 @@ body.dark .ffh-tools .tb>div:last-child>div[title]{background:rgba(245,158,11,.1
 .ff-mdrop{z-index:9999!important;animation:ffDrop .18s var(--ease) both}
 body.dark .ff-mdrop{background:linear-gradient(180deg,var(--card2),var(--card))!important}
 
+/* ── Tasks: filters toggle ── */
+.tk-ftog{display:inline-flex;align-items:center;gap:7px;height:38px;padding:0 14px;border-radius:11px;border:1px solid var(--bdr);background:var(--bg2);color:var(--t2);font-weight:700;font-size:13px;cursor:pointer;font-family:var(--fb)}
+.tk-ftog:hover{border-color:var(--acc);color:var(--t1)}
+.tk-ftog.on{border-color:var(--acc);color:var(--acc);background:var(--acc-soft)}
+.tk-fcnt{min-width:19px;height:19px;padding:0 5px;border-radius:10px;background:linear-gradient(135deg,var(--acc),var(--acc2));color:#fff;font-size:11px;font-weight:800;display:inline-grid;place-items:center}
+.tk-fb{animation:ffDrop .2s var(--ease) both}
+.tk-head{background:transparent!important;box-shadow:none!important}
+
 /* ═══ DENSITY: tighter sizing so the app fits laptops with 125–150% display scaling ═══ */
 body{font-size:13px}
 .ffh-row{padding:8px 24px;gap:10px}
@@ -586,6 +594,32 @@ body{font-size:13px}
   .ffh-tabs{padding:0 10px}
 }
 @media(max-width:768px){
+  /* the whole page scrolls on phones: header & tabs scroll away instead of staying fixed */
+  html,body,#root{height:auto!important;min-height:100%;overflow:visible!important}
+  body{overflow-x:hidden!important}
+  .app{height:auto!important;min-height:100dvh;overflow:visible!important}
+  .main{overflow:visible!important;flex:none}
+  .ffh{position:relative!important;top:auto}
+  .sc{overflow:visible!important;flex:none}
+  .tk-root{height:auto!important;overflow:visible!important}
+  .tk-scroll{overflow:visible!important;flex:none!important;padding:12px 12px 100px!important}
+  .tk-head{padding:14px 12px 10px!important;flex-wrap:wrap;gap:10px;border-bottom:0!important}
+  .tk-head [style*="font-size: 18px"]{font-size:20px!important}
+  .tk-acts{width:100%;gap:8px!important}
+  .tk-acts>*{flex:1;justify-content:center;height:40px;padding:0 10px!important;font-size:13px!important;border-radius:12px!important}
+  .tk-acts .tk-xls{flex:0 0 44px;font-size:0!important;gap:0!important}
+  .tk-acts .tk-xls::before{content:"📊";font-size:17px}
+  .tk-fb{margin:0 12px 6px;border:1px solid var(--bdr)!important;border-radius:16px;background:linear-gradient(180deg,var(--card2),var(--card))!important;padding:12px!important;display:grid!important;grid-template-columns:1fr 1fr;gap:8px!important}
+  .tk-fb>*{width:100%!important;max-width:none!important;min-width:0!important}
+  .tk-fb>.isi,.tk-fb>.fclr-in{grid-column:1/-1}
+  .tk-fb .fclr,.tk-fb select{width:100%}
+  .tk-fb .fs{width:100%;height:40px}
+  .tgh{margin-bottom:8px}
+  .tr{border-radius:14px}
+  .tr .tmt{gap:5px}
+  .tr .tmt>*{font-size:11px!important}
+  .pgr{flex-direction:column;align-items:stretch}
+  .pgr-btns{justify-content:center}
   .ffh-row{gap:8px;padding:8px 12px}
   .ffh-brand span{display:none}
   .ffh-mark{width:36px;height:36px;border-radius:11px}.ffh-mark img{width:28px;height:28px}
@@ -634,6 +668,14 @@ body{font-size:13px}
 @media(max-width:420px){.sgr{grid-template-columns:1fr 1fr}.ttgr{grid-template-columns:1fr}}
 @media(hover:none){.scd:hover,.pc:hover,.ttc:hover,.tr:hover{transform:none}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+
+/* Biometric unlock */
+.bio-box{display:flex;flex-direction:column;gap:10px}
+.bio-btn{display:flex;align-items:center;gap:14px;width:100%;padding:16px 18px;border-radius:16px;border:1px solid rgba(245,166,35,.45);background:linear-gradient(135deg,rgba(245,166,35,.18),rgba(99,102,241,.14));color:var(--t1,#fff);cursor:pointer;text-align:left;font-family:var(--fb)}
+.bio-btn:disabled{opacity:.6}
+.bio-btn b{display:block;font-size:15px}.bio-btn small{display:block;font-size:12px;opacity:.7;margin-top:2px}
+.bio-ic{font-size:30px;line-height:1}
+.bio-alt{background:none;border:none;color:var(--t3);cursor:pointer;font-size:13px;font-family:var(--fb);padding:6px}
 </style>
 </head>
 <body>
@@ -663,6 +705,39 @@ const auth=firebase.auth();
 const authSignIn=(email,pw)=>auth.signInWithEmailAndPassword(email,pw);
 const authSignUp=(email,pw)=>auth.createUserWithEmailAndPassword(email,pw);
 const authSignOut=()=>auth.signOut();
+// ── Biometric unlock (Face ID / fingerprint via WebAuthn passkey) ──
+// Works as a device "app lock": the real sign-in is still the Firebase Auth session
+// (created by a password login). The passkey only gates re-opening that session on THIS device.
+const BIO_KEY='ncsflow_bio';
+const bioSupported=()=>!!(window.PublicKeyCredential&&navigator.credentials&&window.isSecureContext);
+const bioPlatformAvail=async()=>{try{return bioSupported()&&await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();}catch{return false;}};
+const bioGet=()=>{try{const v=JSON.parse(localStorage.getItem(BIO_KEY)||'null');return v&&v.credId&&v.uid?v:null;}catch{return null;}};
+const bioClear=()=>{try{localStorage.removeItem(BIO_KEY);}catch{}};
+const b64u=buf=>btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+const ub64=str=>{str=str.replace(/-/g,'+').replace(/_/g,'/');while(str.length%4)str+='=';return Uint8Array.from(atob(str),c=>c.charCodeAt(0));};
+const rnd=n=>crypto.getRandomValues(new Uint8Array(n));
+const bioEnable=async(user)=>{
+  if(!await bioPlatformAvail())throw new Error('This device does not support Face ID / fingerprint in the browser.');
+  const cred=await navigator.credentials.create({publicKey:{
+    challenge:rnd(32),rp:{name:'NCS Flow',id:location.hostname},
+    user:{id:new TextEncoder().encode(String(user.id)).slice(0,64),name:user.email||user.username,displayName:user.fullName},
+    pubKeyCredParams:[{type:'public-key',alg:-7},{type:'public-key',alg:-257}],
+    authenticatorSelection:{authenticatorAttachment:'platform',userVerification:'required',residentKey:'preferred'},
+    timeout:60000,attestation:'none'}});
+  const v={uid:user.id,email:(user.email||'').toLowerCase(),name:user.fullName,credId:b64u(cred.rawId),at:new Date().toISOString()};
+  localStorage.setItem(BIO_KEY,JSON.stringify(v));return v;
+};
+const bioVerify=async()=>{
+  const v=bioGet();if(!v)throw new Error('Biometric unlock is not set up on this device.');
+  const a=await navigator.credentials.get({publicKey:{challenge:rnd(32),rpId:location.hostname,
+    allowCredentials:[{type:'public-key',id:ub64(v.credId),transports:['internal','hybrid']}],
+    userVerification:'required',timeout:60000}});
+  if(!a||b64u(a.rawId)!==v.credId)throw new Error('Verification failed.');
+  const flags=new Uint8Array(a.response.authenticatorData)[32];
+  if(!(flags&0x04))throw new Error('Face ID / fingerprint was not confirmed.');
+  return v;
+};
+const authReady=()=>new Promise(res=>{const un=auth.onAuthStateChanged(u=>{un();res(u);});});
 const authUpdatePw=(newPw)=>auth.currentUser?auth.currentUser.updatePassword(newPw):Promise.reject('Not logged in');
 
 // DB helpers
@@ -2009,6 +2084,21 @@ const Login=({onLogin,allUsers})=>{
   const [forgotSent,setForgotSent]=useState(false);
   const [forgotErr,setForgotErr]=useState('');
   const [forgotLd,setForgotLd]=useState(false);
+  const [bio,setBio]=useState(()=>bioGet());
+  const bioLogin=async()=>{
+    setErr('');setLd(true);
+    try{
+      const v=await bioVerify();
+      const fbUser=auth.currentUser||await authReady();
+      if(!fbUser||(fbUser.email||'').toLowerCase()!==v.email){
+        setErr('Your session expired. Please sign in with your password once, then Face ID / fingerprint will work again.');setLd(false);return;}
+      const list=(allUsers&&allUsers.length)?allUsers:USERS;
+      const found=list.find(u=>u.id===v.uid&&u.isActive);
+      if(!found){bioClear();setBio(null);authSignOut();setErr('User not found or inactive.');setLd(false);return;}
+      onLogin(found);
+    }catch(e){setErr(e&&e.name==='NotAllowedError'?'Cancelled.':(e.message||'Biometric sign-in failed.'));setLd(false);}
+  };
+  const useOther=()=>{bioClear();setBio(null);authSignOut();};
 
   const sub=e=>{
     e.preventDefault();setLd(true);setErr('');
@@ -2127,7 +2217,14 @@ const Login=({onLogin,allUsers})=>{
         React.createElement('div',{className:'lti'},'NCS Operations Platform'),
         React.createElement('div',{className:'lsu'},'Task Management & Collaboration Platform')
       ),
-      React.createElement('form',{onSubmit:sub},
+      bio&&React.createElement('div',{className:'bio-box'},
+        React.createElement('button',{type:'button',className:'bio-btn',onClick:bioLogin,disabled:ld},
+          React.createElement('span',{className:'bio-ic'},'🔐'),
+          React.createElement('span',null,React.createElement('b',null,'Unlock with Face ID / Fingerprint'),React.createElement('small',null,bio.name))),
+        React.createElement('button',{type:'button',className:'bio-alt',onClick:useOther},'Use password / another account'),
+        err&&React.createElement('div',{className:'eb',style:{marginTop:12}},I.alert,React.createElement('span',null,err))
+      ),
+      !bio&&React.createElement('form',{onSubmit:sub},
         err&&React.createElement('div',{className:'eb'},I.alert,React.createElement('span',null,err)),
         React.createElement('div',{className:'frw'},
           React.createElement(Fld,{lbl:'Email or Username',ch:React.createElement('input',{className:'ip',type:'text',placeholder:'username or email',value:id,onChange:e=>setId(e.target.value),required:true,autoComplete:'username'})})
@@ -2438,6 +2535,13 @@ const TopNav=({screen,setScreen,user,onLogout,activeDept,setActiveDept,children}
         menu.id==='user'?React.createElement(React.Fragment,null,
           React.createElement('div',{className:'mh'},user.fullName),
           React.createElement('button',{className:screen==='changepw'?'on':'',onClick:()=>go('changepw')},React.createElement('span',null,'🔑'),'Change my password'),
+          bioSupported()&&React.createElement('button',{onClick:async()=>{
+            setMenu(null);
+            const cur=bioGet();
+            if(cur&&cur.uid===user.id){bioClear();alert('Face ID / fingerprint unlock turned off on this device.');return;}
+            try{await bioEnable(user);alert('Done ✅ Next time, open NCS Flow and unlock with Face ID / fingerprint.');}
+            catch(e){if(!(e&&e.name==='NotAllowedError'))alert(e.message||'Could not enable biometric unlock.');}
+          }},React.createElement('span',null,'🔐'),(bioGet()&&bioGet().uid===user.id)?'Turn off Face ID / Fingerprint':'Enable Face ID / Fingerprint'),
           React.createElement('hr'),
           React.createElement('button',{className:'danger',onClick:()=>{setMenu(null);onLogout();}},React.createElement('span',null,'⎋'),'Sign out')
         ):(menuList||[]).map(n=>React.createElement('button',{key:n.id,className:screen===n.id?'on':'',onClick:()=>go(n.id)},React.createElement('span',null,FF_EMOJI[n.id]||'•'),n.l,n.id==='pwresets'&&React.createElement(PwResetBadge,null)))
@@ -4640,6 +4744,8 @@ const Tasks=({user,selTask,setSelTask,initialProjFilter,clearProjFilter,activeDe
   const defAsgn=(user.role==='team_member'||user.role==='support')?'':user.id; // default: my tasks
   const [f,setF]=useState({proj:initialProjFilter||'',asgn:defAsgn,st:'',q:'',phase:'',type:'',dir:'',noComment:false,unassigned:false});
   const [page,setPage]=useState(0);
+  // Filters panel: hidden by default on phones, shown on desktop; toggled by the "Filters" button
+  const [showF,setShowF]=useState(()=>!(window.matchMedia&&window.matchMedia('(max-width: 768px)').matches));
   const [collapsed,setCollapsed]=useState({});
   // Sync initialProjFilter when it changes (from View Tasks button)
   React.useEffect(()=>{if(initialProjFilter){setF(prev=>({...prev,proj:initialProjFilter}));if(clearProjFilter)clearProjFilter();}}, [initialProjFilter]);
@@ -4691,6 +4797,7 @@ const Tasks=({user,selTask,setSelTask,initialProjFilter,clearProjFilter,activeDe
     return da-db;
   });
 
+  const fCount=['proj','asgn','st','q','type','dir','dept','phase'].filter(k=>f[k]).length+(f.noComment?1:0)+(f.unassigned?1:0);
   // Paging: render 100 tasks at a time so big data sets stay fast
   const fKey=JSON.stringify(f)+'|'+activeDept;
   useEffect(()=>{setPage(0);},[fKey]);
@@ -4802,11 +4909,17 @@ const Tasks=({user,selTask,setSelTask,initialProjFilter,clearProjFilter,activeDe
     )
   );
 
-  return React.createElement('div',{style:{display:'flex',flexDirection:'column',height:'100%',overflow:'hidden'}},
-    React.createElement('div',{style:{padding:'18px 24px',borderBottom:'1px solid var(--bdr)',display:'flex',alignItems:'center',justifyContent:'space-between',background:'var(--surf)',boxShadow:'0 1px 3px #0000000a'}},
+  return React.createElement('div',{className:'tk-root',style:{display:'flex',flexDirection:'column',height:'100%',overflow:'hidden'}},
+    React.createElement('div',{className:'tk-head',style:{padding:'18px 24px',borderBottom:'1px solid var(--bdr)',display:'flex',alignItems:'center',justifyContent:'space-between',background:'var(--surf)',boxShadow:'0 1px 3px #0000000a'}},
       React.createElement('div',null,React.createElement('div',{style:{fontFamily:'var(--fd)',fontSize:18,fontWeight:800}},user.role==='team_member'||user.role==='support'?'My Tasks':'All Tasks'),React.createElement('div',{style:{fontSize:12,color:'var(--t3)',marginTop:2}},filtSorted.length,' task',filtSorted.length!==1?'s':'')),
-      React.createElement('div',{style:{display:'flex',gap:8}},
+      React.createElement('div',{className:'tk-acts',style:{display:'flex',gap:8}},
+        React.createElement('button',{type:'button',className:'tk-ftog'+(showF?' on':''),onClick:()=>setShowF(v=>!v),'aria-expanded':showF,title:showF?'Hide filters':'Show filters'},
+          React.createElement('svg',{width:15,height:15,viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:2.2,strokeLinecap:'round'},React.createElement('path',{d:'M3 5h18M6 12h12M10 19h4'})),
+          React.createElement('span',{className:'tk-ftxt'},'Filters'),
+          fCount>0&&React.createElement('span',{className:'tk-fcnt'},fCount)
+        ),
         filtSorted.length>0&&React.createElement('button',{
+          className:'tk-xls',
           onClick:exportToExcel,
           style:{display:'flex',alignItems:'center',gap:6,padding:'9px 16px',borderRadius:9,border:'1.5px solid #10b981',background:'#f0fdf4',color:'#059669',cursor:'pointer',fontFamily:'var(--fb)',fontSize:13,fontWeight:700,transition:'all .15s'},
           onMouseEnter:e=>{e.currentTarget.style.background='#dcfce7';},
@@ -4815,7 +4928,7 @@ const Tasks=({user,selTask,setSelTask,initialProjFilter,clearProjFilter,activeDe
         React.createElement(Btn,{v:'pr',sz:'md',ch:React.createElement(React.Fragment,null,I.plus,'\u00a0New Task'),onClick:openNew})
       )
     ),
-    React.createElement('div',{className:'fb',style:{flexWrap:'wrap',gap:8}},
+    showF&&React.createElement('div',{className:'fb tk-fb',style:{flexWrap:'wrap',gap:8}},
       React.createElement('div',{className:'isi',style:{flex:1,minWidth:180,maxWidth:240}},React.createElement('span',{className:'ico'},I.search),React.createElement(FInp,{className:'ip',placeholder:'Search tasks…',value:f.q,onChange:e=>setF({...f,q:e.target.value})})),
       React.createElement(FSel,{className:'fs',value:f.proj,onChange:e=>setF({...f,proj:e.target.value})},React.createElement('option',{value:''},'All Projects'),getVisibleProjects(user,projects,activeDept).map(p=>React.createElement('option',{key:p.id,value:p.id},p.code))),
       user.role!=='team_member'&&React.createElement(FSel,{className:'fs',value:f.asgn,onChange:e=>setF({...f,asgn:e.target.value})},React.createElement('option',{value:''},'All Members'),users.filter(u=>{
@@ -4865,7 +4978,7 @@ const Tasks=({user,selTask,setSelTask,initialProjFilter,clearProjFilter,activeDe
       ),
       (f.proj||f.asgn||f.st||f.q||f.type||f.dir||f.noComment||f.unassigned)&&React.createElement(Btn,{v:'gh',sz:'sm',ch:'Clear',onClick:()=>setF({proj:'',asgn:'',st:'',q:'',phase:'',dept:'',type:'',dir:'',noComment:false,unassigned:false})})
     ),
-    React.createElement('div',{style:{flex:1,overflowY:'auto',padding:'20px 24px'}},
+    React.createElement('div',{className:'tk-scroll',style:{flex:1,overflowY:'auto',padding:'20px 24px'}},
       React.createElement(Pager,{total:filtSorted.length,page:curPage,setPage}),
       Object.keys(ST).map(s=>{
         const grp=pageTasks.filter(t=>t.status===s);if(!grp.length&&!f.st)return null;const s2=ST[s];
@@ -6788,7 +6901,7 @@ const App=()=>{
     React.createElement(React.Fragment,null,
     ovLCS&&React.createElement(LCSPanel,{project:ovLCS,onClose:()=>setOvLCS(null),isAdmin:user.role==='global_admin'||user.role==='admin',currentUser:user,activeDept:ovLCS._viewDept||activeDept,onUpdate:u=>{const{_viewDept,...clean}=u;setProjects(prev=>prev.map(p=>p.id===clean.id?clean:p));setOvLCS(null);}}),
     React.createElement('div',{className:'app'},
-      React.createElement(TopNav,{screen,setScreen:s=>{setScreen(s);setSelTask(null)},user,onLogout:()=>{authSignOut();setUser(null);setScreen('dashboard');setActiveDept('');},activeDept,setActiveDept},
+      React.createElement(TopNav,{screen,setScreen:s=>{setScreen(s);setSelTask(null)},user,onLogout:()=>{const b=bioGet();if(!(b&&b.uid===user.id))authSignOut();setUser(null);setScreen('dashboard');setActiveDept('');},activeDept,setActiveDept},
         React.createElement(Topbar,{user,onMenu:()=>setSbOpen(v=>!v),activeDept,onGoToPwResets:()=>setScreen('pwresets'),onGoToTasks:()=>setScreen('tasks'),onOpenTask:(t)=>{setSelTask(t);setScreen('tasks');},onBack:screenHistory.length>0?goBack:null})
       ),
       React.createElement('div',{className:'main'},
