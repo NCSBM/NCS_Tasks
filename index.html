@@ -2,10 +2,12 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<meta name="theme-color" content="#060b17"/>
 <title>FinanceFlow — NCS Finance Department</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap"/>
 <!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
@@ -264,6 +266,374 @@ nav.snav{flex:1;padding:12px 10px;display:flex;flex-direction:column;gap:2px;ove
   .lph{grid-template-columns:1fr}
   .direction-pick{grid-template-columns:1fr}
 }
+/* ═══════════════════════════════════════════════════════════════════════════
+   FINANCEFLOW "MIDNIGHT GOLD" v2 — top navigation shell, starfield, glass cards
+   Layered on top of the base styles above; remove this block to roll back.
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root{
+  --fd:'Plus Jakarta Sans','Inter',sans-serif;--fb:'Inter','Segoe UI',sans-serif;--fm:'JetBrains Mono','DM Mono',monospace;
+  --gold:#d8b25a;--gold2:#f4dc98;--gold3:#c99a2e;--gold-soft:rgba(216,178,90,.14);
+  --acc:#2563eb;--acc2:#1d4fc4;--acc-soft:rgba(37,99,235,.09);
+  --or:#c99a2e;--or-dim:rgba(201,154,46,.10);--or-bdr:rgba(201,154,46,.35);
+  --bg:#eef2f8;--bg2:#e6ebf4;--surf:#fff;--card:#fff;--card2:#f9fbfe;
+  --bdr:#dde4ef;--bdr2:#cfd8e6;--line2:#e8edf5;
+  --t1:#0c1730;--t2:#43526d;--t3:#7a88a0;--dk:#0c1730;
+  --glass:rgba(255,255,255,.82);
+  --sh1:0 1px 2px rgba(15,30,60,.04),0 10px 30px rgba(15,30,60,.06);
+  --sh2:0 18px 44px rgba(15,30,60,.12);
+  --r:18px;--ease:cubic-bezier(.2,.8,.2,1);
+}
+body.dark{
+  --acc:#5b97f7;--acc2:#3b74d8;--acc-soft:rgba(91,151,247,.14);
+  --or:#d8b25a;--or-dim:rgba(216,178,90,.12);--or-bdr:rgba(216,178,90,.4);
+  --bg:#060b17;--bg2:#0a1222;--surf:#0e1830;--card:#0e1830;--card2:#122040;
+  --bdr:#1d2d4d;--bdr2:#26385e;--line2:#16243f;
+  --t1:#eef3fb;--t2:#aab8cf;--t3:#6f82a2;--dk:#060b17;
+  --glass:rgba(8,14,28,.84);
+  --sh1:0 10px 30px rgba(0,0,0,.28);
+  --sh2:0 24px 60px rgba(0,0,0,.45);
+}
+html,body{background:var(--bg)}
+#root{background:transparent}
+body{font-family:var(--fb);font-feature-settings:"cv11","ss01";letter-spacing:-.005em}
+body,*{transition:none}
+button,a,.tr,.pc,.cd,.scd,.ttc,.bn,.ip,.fs,.stb,.pt,.phc,.dbt,.uz,.dp-opt,.ffh-tab,.ffh-seg button,.ffh-ib{transition:background-color .2s,border-color .2s,color .15s,box-shadow .25s var(--ease),transform .25s var(--ease)}
+
+/* ── keyframes ── */
+@keyframes ffRise{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+@keyframes ffFade{from{opacity:0}to{opacity:1}}
+@keyframes ffPop{from{opacity:0;transform:translateY(16px) scale(.97)}to{opacity:1;transform:none}}
+@keyframes ffSheet{from{transform:translateY(100%)}to{transform:none}}
+@keyframes ffDrop{from{opacity:0;transform:translateY(-6px) scale(.98)}to{opacity:1;transform:none}}
+@keyframes ffShimmer{from{transform:translateX(-100%)}to{transform:translateX(240%)}}
+@keyframes ffShine{from{left:-60%}to{left:130%}}
+@keyframes ffPulse{0%,100%{box-shadow:0 0 0 0 rgba(244,114,114,.4)}60%{box-shadow:0 0 0 7px rgba(244,114,114,0)}}
+@keyframes ffWave{0%,60%,100%{transform:rotate(0)}10%,30%{transform:rotate(16deg)}20%,40%{transform:rotate(-8deg)}}
+@keyframes ffGrad{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+@keyframes ffFab{0%{box-shadow:0 10px 30px rgba(216,178,90,.45),0 0 0 0 rgba(216,178,90,.45)}70%{box-shadow:0 10px 30px rgba(216,178,90,.45),0 0 0 14px rgba(216,178,90,0)}100%{box-shadow:0 10px 30px rgba(216,178,90,.45),0 0 0 0 rgba(216,178,90,0)}}
+
+/* ── animated starfield + glow (canvas injected by script) ── */
+#ff-fx{position:fixed;inset:0;z-index:0;pointer-events:none;width:100%;height:100%}
+.ff-glow{position:fixed;inset:0;z-index:0;pointer-events:none;background:radial-gradient(1000px 560px at 100% -10%,rgba(91,151,247,.14),transparent 60%),radial-gradient(800px 480px at -10% 110%,rgba(216,178,90,.10),transparent 60%)}
+body:not(.dark) .ff-glow{opacity:.6}
+body:not(.dark) #ff-fx{opacity:.45}
+#root{position:relative;z-index:1}
+
+/* ── shell: header on top, content below ── */
+.app{flex-direction:column;height:100vh;height:100dvh;position:relative;z-index:1;background:transparent}
+.main{background:transparent;flex:1;min-height:0}
+.main>.tb{display:none}
+.sc{background:transparent;padding:26px max(28px,calc((100% - 1240px)/2))}
+
+.ffh{position:sticky;top:0;z-index:30;background:var(--glass);backdrop-filter:blur(16px) saturate(140%);-webkit-backdrop-filter:blur(16px) saturate(140%);border-bottom:1px solid var(--line2);flex-shrink:0;padding-top:env(safe-area-inset-top)}
+.ffh-row{max-width:1296px;margin:0 auto;padding:10px 28px;display:flex;align-items:center;gap:12px}
+.ffh-brand{display:flex;align-items:center;gap:11px;margin-inline-end:auto;min-width:0;cursor:pointer;background:none;border:0;text-align:left;color:inherit}
+.ffh-mark{width:42px;height:42px;border-radius:13px;display:grid;place-items:center;background:#fff;border:1px solid var(--bdr);box-shadow:0 6px 20px -6px rgba(216,178,90,.5);overflow:hidden;flex-shrink:0}
+body.dark .ffh-mark{border-color:rgba(216,178,90,.45)}
+.ffh-mark img{width:34px;height:34px;object-fit:contain}
+.ffh-brand b{display:flex;align-items:center;gap:7px;font-family:var(--fd);font-size:16px;font-weight:800;color:var(--t1);white-space:nowrap}
+.ffh-brand b i{font-style:normal;font-family:var(--fb);font-size:10px;letter-spacing:1.5px;color:var(--gold3);border:1px solid var(--gold3);border-radius:6px;padding:1px 5px;font-weight:700}
+body.dark .ffh-brand b i{color:var(--gold);border-color:var(--gold)}
+.ffh-brand span{display:block;color:var(--t3);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ffh-seg{display:inline-flex;background:var(--bg2);border:1px solid var(--bdr);border-radius:13px;padding:3px;gap:2px;overflow-x:auto;max-width:100%;scrollbar-width:none;flex-shrink:1;min-width:0}
+.ffh-seg::-webkit-scrollbar{display:none}
+.ffh-seg button{padding:6px 12px;border-radius:10px;font-size:12.5px;color:var(--t2);font-weight:600;white-space:nowrap;display:flex;align-items:center;gap:6px;border:0;background:none;cursor:pointer;font-family:var(--fb)}
+.ffh-seg button:hover{color:var(--t1);background:rgba(127,140,170,.10)}
+.ffh-seg button.on{background:linear-gradient(135deg,var(--acc),var(--acc2));color:#fff;box-shadow:0 4px 14px rgba(59,116,216,.38)}
+.ffh-tools{display:flex;align-items:center;gap:8px;min-width:0}
+/* Topbar re-used inside the header as a compact tool strip */
+.ffh-tools .tb{height:auto;padding:0;border:0!important;background:none!important;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none;min-width:0}
+.ffh-tools .tb>button:first-child{display:none!important}
+.ffh-tools .tb>div[style*="flex: 1"]{display:none}
+.ffh-tools .tb>div:last-child{gap:8px!important}
+.ffh-tools .tb>div:last-child>div[style*="width: 1px"],.ffh-tools .tb .tu,.ffh-tools .tb .dl,.ffh-tools .tb .ds{display:none}
+.ffh-tools .tb>div:last-child>div[style*="text-align: right"]{display:none}
+.ffh-tools .tb button[style*="width: 34px"],.ffh-tools .tb>div:last-child>div>button{width:36px!important;height:36px!important;border-radius:11px!important;border:1px solid var(--bdr)!important;background:var(--bg2)!important}
+.ffh-tools .tb button[style*="width: 34px"]:hover,.ffh-tools .tb>div:last-child>div>button:hover{border-color:var(--acc)!important;transform:translateY(-1px)}
+.ffh-tools .tb .ap,.ffh-tools .tb>div:last-child>div[title]{border-radius:999px!important;height:32px;padding:0 12px!important;display:flex;align-items:center}
+.ffh-tools .tb>button[title="Go back"]{border-radius:11px!important;height:36px;background:var(--bg2)!important;border:1px solid var(--bdr)!important}
+.ffh-ib{height:36px;min-width:36px;padding:0 11px;border-radius:11px;border:1px solid var(--bdr);color:var(--t2);font-size:13px;display:inline-flex;gap:6px;align-items:center;justify-content:center;background:var(--bg2);white-space:nowrap;cursor:pointer;font-family:var(--fb);font-weight:600}
+.ffh-ib:hover{color:var(--t1);border-color:var(--acc)}
+.ffh-user{position:relative}
+.ffh-user>.ffh-ib{padding:0 10px 0 4px;height:40px;border-radius:999px}
+.ffh-user .un2{display:flex;flex-direction:column;align-items:flex-start;line-height:1.15}
+.ffh-user .un2 b{font-size:12.5px;color:var(--t1)}.ffh-user .un2 small{font-size:10.5px;color:var(--gold3);font-weight:600}
+body.dark .ffh-user .un2 small{color:var(--gold)}
+.ffh-menu{position:fixed;z-index:400;min-width:220px;background:var(--surf);border:1px solid var(--bdr);border-radius:16px;padding:6px;box-shadow:var(--sh2);animation:ffDrop .18s var(--ease) both}
+body.dark .ffh-menu{background:linear-gradient(180deg,var(--card2),var(--card))}
+.ffh-menu button{display:flex;align-items:center;gap:10px;width:100%;padding:10px 12px;border-radius:11px;border:0;background:none;color:var(--t2);font-size:13px;font-weight:600;cursor:pointer;text-align:left;font-family:var(--fb)}
+.ffh-menu button:hover{background:var(--acc-soft);color:var(--t1)}
+.ffh-menu button.on{color:var(--gold3);background:var(--gold-soft)}
+body.dark .ffh-menu button.on{color:var(--gold2)}
+.ffh-menu button.danger{color:#ef4444}.ffh-menu button.danger:hover{background:rgba(239,68,68,.1)}
+.ffh-menu hr{border:0;height:1px;background:var(--bdr);margin:6px 4px}
+.ffh-menu .mh{padding:8px 12px 4px;font-size:10.5px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.08em}
+.ffh-tabs{max-width:1296px;margin:0 auto;padding:0 20px;display:flex;gap:2px;overflow-x:auto;scrollbar-width:none}
+.ffh-tabs::-webkit-scrollbar{display:none}
+.ffh-tab{padding:10px 13px 12px;color:var(--t3);font-weight:600;font-size:13.5px;border:0;border-bottom:2px solid transparent;background:none;white-space:nowrap;display:flex;gap:7px;align-items:center;cursor:pointer;font-family:var(--fb);position:relative}
+.ffh-tab .e{font-size:15px;filter:saturate(1.1)}
+.ffh-tab:hover{color:var(--t1)}
+.ffh-tab.on{color:var(--t1);border-bottom-color:var(--gold)}
+.ffh-tab.on::after{content:"";position:absolute;left:18%;right:18%;bottom:-2px;height:10px;background:radial-gradient(closest-side,rgba(216,178,90,.55),transparent);filter:blur(4px);pointer-events:none}
+.ffh-tab .cnt{min-width:18px;height:18px;border-radius:9px;background:#ef4444;color:#fff;font-size:10.5px;font-weight:800;display:inline-grid;place-items:center;padding:0 5px}
+.ffh-tab .car{font-size:10px;opacity:.6}
+
+/* ── floating action buttons ── */
+.ff-fab{position:fixed;left:26px;bottom:calc(26px + env(safe-area-inset-bottom));z-index:40;width:60px;height:60px;border-radius:50%;border:0;cursor:pointer;background:radial-gradient(circle at 30% 30%,var(--gold2),var(--gold) 60%,#8a6010);color:#1a1200;font-size:30px;font-weight:300;display:grid;place-items:center;font-family:var(--fb);animation:ffFab 2.8s ease-out infinite}
+.ff-fab:hover{transform:scale(1.08) rotate(90deg)}
+.ff-fab-mini{position:fixed;left:32px;z-index:40;width:48px;height:48px;border-radius:50%;cursor:pointer;display:grid;place-items:center;font-size:20px;background:var(--glass);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid var(--or-bdr);box-shadow:var(--sh1)}
+.ff-fab-mini:hover{transform:translateY(-2px);border-color:var(--gold)}
+
+/* ── page entrance ── */
+.sc{animation:ffFade .35s ease both}
+.sc>*{animation:ffRise .6s var(--ease) both}
+.sc>*:nth-child(2){animation-delay:.05s}.sc>*:nth-child(3){animation-delay:.1s}.sc>*:nth-child(4){animation-delay:.15s}
+.sc>*:nth-child(5){animation-delay:.2s}.sc>*:nth-child(6){animation-delay:.25s}.sc>*:nth-child(n+7){animation-delay:.3s}
+.sgr>*{animation:ffRise .6s var(--ease) both}
+.sgr>*:nth-child(2){animation-delay:.07s}.sgr>*:nth-child(3){animation-delay:.14s}.sgr>*:nth-child(4){animation-delay:.21s}
+.tr{animation:ffRise .5s var(--ease) both}
+.tr:nth-child(2){animation-delay:.04s}.tr:nth-child(3){animation-delay:.08s}.tr:nth-child(4){animation-delay:.12s}.tr:nth-child(5){animation-delay:.16s}.tr:nth-child(n+6){animation-delay:.2s}
+
+/* ── headings ── */
+.st{font-family:var(--fd);letter-spacing:-.4px}
+.ss{color:var(--t3)}
+.ff-hello{font-family:var(--fd)!important;letter-spacing:-1px!important}
+.ff-name{background:linear-gradient(120deg,var(--gold3),#9c7322,var(--gold3));background-size:200% 100%;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;animation:ffGrad 8s ease-in-out infinite}
+body.dark .ff-name{background-image:linear-gradient(120deg,var(--gold2),var(--gold),#fff3cf,var(--gold2));background-size:300% 100%}
+.ff-wave{display:inline-block;transform-origin:70% 75%;animation:ffWave 2.6s ease-in-out 1s 2}
+.sv,.num{font-family:'Inter',sans-serif;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+
+/* ── cards (reference: gradient card2→card, 1px line, 18px radius) ── */
+.cd,.scd,.pc,.ttc,.mod,.lc{background:linear-gradient(180deg,var(--card2),var(--card));border:1px solid var(--bdr);border-radius:var(--r);box-shadow:var(--sh1)}
+.scd{padding:16px 18px}
+.scd>div[style*="bottom: 0"]{top:0!important;bottom:auto!important;height:2px!important}
+.scd:hover,.pc:hover,.ttc:hover{transform:translateY(-3px);border-color:var(--or-bdr);box-shadow:var(--sh2)}
+.sl{color:var(--t2);font-size:12px;letter-spacing:.02em;text-transform:none;font-weight:600}
+.sv{font-size:30px;margin-top:10px}
+.tr{background:var(--bg2);border:1px solid var(--line2);border-radius:14px;box-shadow:none}
+body.dark .tr{background:rgba(10,18,34,.6)}
+.tr:hover{transform:translateY(-2px);border-color:var(--or-bdr)!important;box-shadow:0 12px 28px -14px rgba(216,178,90,.55)}
+.tr.sel,body.dark .tr.sel{border-color:var(--gold)!important;background:var(--gold-soft)!important}
+.alr{border-radius:16px;padding:13px 16px;border-width:1px!important;backdrop-filter:blur(6px)}
+body.dark .alr:not(.alov):not(.altd){background:linear-gradient(90deg,rgba(124,92,230,.20),rgba(14,24,48,.55))!important;border-color:rgba(167,139,250,.35)!important;color:#e9e3ff!important}
+body.dark .alr:not(.alov):not(.altd) strong{color:#fff}
+.utb th{text-transform:none;letter-spacing:.02em;font-size:11.5px}
+
+/* ── buttons ── */
+.bn{border-radius:11px}
+.bpr,body.dark .bn.bpr{background:linear-gradient(135deg,var(--gold2),var(--gold));color:#2a1d00;font-weight:700;box-shadow:0 8px 22px -8px rgba(216,178,90,.7);position:relative;overflow:hidden}
+.bpr:hover,body.dark .bn.bpr:hover{background:linear-gradient(135deg,#fae6ae,#e0b14a);transform:translateY(-2px);box-shadow:0 14px 30px -10px rgba(216,178,90,.85)}
+.bpr::after{content:"";position:absolute;top:0;left:-60%;width:40%;height:100%;background:linear-gradient(100deg,transparent,rgba(255,255,255,.55),transparent);transform:skewX(-20deg);pointer-events:none}
+.bpr:hover::after{animation:ffShine .8s ease}
+.bse{background:var(--bg2);border:1px solid var(--bdr)}
+.bn:active{transform:scale(.98)}
+
+/* ── progress ── */
+.prb{height:6px;border-radius:99px;background:var(--bg2)}
+.prf{position:relative;overflow:hidden;border-radius:99px;background:linear-gradient(90deg,var(--acc),#8fb8ff)}
+.prf::after{content:"";position:absolute;inset:0;width:45%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.55),transparent);animation:ffShimmer 2.4s ease-in-out infinite}
+
+/* ── inputs ── */
+.ip,.fs{border-radius:12px;border-width:1px;background:var(--bg2)}
+.ip:focus,body.dark .ip:focus,.fs:focus,body.dark .fs:focus{border-color:var(--acc);box-shadow:0 0 0 4px var(--acc-soft)}
+body.dark .ip,body.dark .fs{background:var(--bg2)}
+.fb{background:transparent;border-bottom:1px solid var(--line2)}
+
+/* ── panels & modals ── */
+.pbk{background:rgba(4,8,16,.5);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);animation:ffFade .25s ease both}
+.pan{background:linear-gradient(180deg,var(--card2),var(--card));border-left:1px solid var(--bdr);box-shadow:-20px 0 60px rgba(4,8,16,.4);animation:slideIn .35s var(--ease) both}
+.psb{background:var(--bg2)}
+.mov{background:rgba(4,8,16,.55);animation:ffFade .2s ease both}
+.mod{border-radius:22px;animation:ffPop .35s var(--ease) both}
+.pt.at,body.dark .pt.at{border-color:var(--gold);color:var(--t1)}
+.pco{color:var(--gold3);background:var(--gold-soft);border-color:var(--or-bdr)}
+body.dark .pco{color:var(--gold2)}
+
+/* ── login ── */
+.lbg{position:relative;background:transparent}
+.lc{position:relative;z-index:1;border-radius:26px;animation:ffPop .7s var(--ease) both;background:var(--glass);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);box-shadow:0 24px 60px rgba(0,0,0,.35)}
+.lc::before{content:"";position:absolute;inset:0 0 auto;height:3px;border-radius:26px 26px 0 0;background:linear-gradient(90deg,transparent,var(--gold),transparent)}
+.liw img{border-radius:18px;padding:8px;background:#fff;box-shadow:0 0 0 1px rgba(216,178,90,.4),0 12px 40px -8px rgba(216,178,90,.5)}
+.lti{font-family:var(--fd)}
+
+/* ── scrollbars ── */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-thumb{background:#c3cbdb;border-radius:4px}
+body.dark ::-webkit-scrollbar-thumb{background:#22335a}
+
+/* ═══ DARK MODE: tame light-only colours (classes + inline styles) ═══ */
+body.dark .bse{background:var(--card2);color:var(--t2)}
+body.dark .bse:hover,body.dark .bgh:hover{background:#ffffff0d}
+body.dark .bda,body.dark .alov,body.dark .dov,body.dark .eb,body.dark .ap{background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.35);color:#fca5a5}
+body.dark .bin{background:rgba(91,151,247,.12);border-color:rgba(91,151,247,.35);color:#9cc0ff}
+body.dark .altd,body.dark .dtd,body.dark .ibx{background:rgba(245,158,11,.10);border-color:rgba(245,158,11,.32);color:#fcd34d}
+body.dark .dsn{background:rgba(234,179,8,.10);border-color:rgba(234,179,8,.3);color:#fde047}
+body.dark .ddn,body.dark .dir-em{background:rgba(52,211,153,.10);border-color:rgba(52,211,153,.32);color:#6ee7b7}
+body.dark .dir-ms{background:rgba(56,189,248,.10);border-color:rgba(56,189,248,.32);color:#7dd3fc}
+body.dark .dp,body.dark .dc-banner{background:linear-gradient(135deg,rgba(232,196,106,.14),rgba(232,196,106,.04));border-color:rgba(232,196,106,.5)}
+body.dark .dp-title{color:var(--gold2)}body.dark .dp-sub{color:#e8d6a6}
+body.dark .stb,body.dark .phi,body.dark .dp-opt{background:var(--card2)}
+body.dark .phc.dph{background:rgba(52,211,153,.08);border-color:rgba(52,211,153,.3)}
+body.dark .phc.iph{background:rgba(245,158,11,.08);border-color:rgba(245,158,11,.3)}
+body.dark .avst .av{border-color:var(--surf)}
+body.dark .utb th{background:var(--card2)}
+body.dark .utb tr:hover td{background:#ffffff06}
+/* inline pastel backgrounds → tinted glass */
+body.dark [style*="background: rgb(255, 255, 255)"]{background:var(--surf)!important}
+body.dark [style*="background: rgb(248, 249, 252)"],body.dark [style*="background: rgb(248, 250, 252)"]{background:var(--card2)!important}
+body.dark [style*="background: rgb(226, 232, 240)"]{background:var(--bdr)!important}
+body.dark [style*="background: rgb(241, 245, 249)"]{background:rgba(148,163,184,.14)!important}
+body.dark [style*=" color: rgb(100, 116, 139)"]{color:#a3aecb!important}
+body.dark [style*="background: rgb(240, 253, 244)"],body.dark [style*="background: rgb(220, 252, 231)"]{background:rgba(52,211,153,.11)!important}
+body.dark [style*="background: rgb(187, 247, 208)"]{background:rgba(52,211,153,.22)!important}
+body.dark [style*="background: rgb(254, 242, 242)"]{background:rgba(239,68,68,.11)!important}
+body.dark [style*="background: rgb(255, 251, 235)"],body.dark [style*="background: rgb(254, 243, 199)"],body.dark [style*="background: rgb(255, 247, 237)"]{background:rgba(245,158,11,.11)!important}
+body.dark [style*="background: rgb(239, 246, 255)"],body.dark [style*="background: rgb(240, 249, 255)"]{background:rgba(91,151,247,.12)!important}
+body.dark [style*="background: rgb(245, 243, 255)"]{background:rgba(139,92,246,.13)!important}
+body.dark [style*="background: rgb(224, 242, 254)"],body.dark [style*="background: rgb(219, 234, 254)"]{background:rgba(56,189,248,.16)!important}
+body.dark [style*="background: rgb(249, 250, 251)"]{background:var(--card2)!important}
+body.dark [style*="background: rgb(255, 245, 245)"],body.dark [style*="background: rgb(254, 226, 226)"]{background:rgba(239,68,68,.12)!important}
+body.dark [style*="background: rgb(254, 252, 232)"]{background:rgba(234,179,8,.11)!important}
+body.dark [style*="solid rgb(187, 247, 208)"]{border-color:rgba(52,211,153,.35)!important}
+body.dark [style*="solid rgb(254, 202, 202)"]{border-color:rgba(239,68,68,.35)!important}
+body.dark [style*="solid rgb(253, 230, 138)"]{border-color:rgba(245,158,11,.35)!important}
+body.dark [style*="solid rgb(191, 219, 254)"]{border-color:rgba(91,151,247,.35)!important}
+body.dark [style*="solid rgb(221, 214, 254)"]{border-color:rgba(139,92,246,.35)!important}
+body.dark [style*="solid rgb(255, 255, 255)"]{border-color:var(--bdr)!important}
+/* inline dark text colours → readable on navy */
+body.dark [style*=" color: rgb(146, 64, 14)"],body.dark [style*=" color: rgb(180, 83, 9)"],body.dark [style*=" color: rgb(217, 119, 6)"],body.dark [style^="color: rgb(146, 64, 14)"]{color:#fcd34d!important}
+body.dark [style*=" color: rgb(161, 98, 7)"]{color:#fde047!important}
+body.dark [style*=" color: rgb(22, 101, 52)"],body.dark [style*=" color: rgb(5, 150, 105)"],body.dark [style^="color: rgb(5, 150, 105)"]{color:#6ee7b7!important}
+body.dark [style*=" color: rgb(220, 38, 38)"],body.dark [style^="color: rgb(220, 38, 38)"]{color:#fca5a5!important}
+body.dark [style*=" color: rgb(37, 99, 235)"],body.dark [style*=" color: rgb(3, 105, 161)"]{color:#9cc0ff!important}
+body.dark [style*=" color: rgb(124, 58, 237)"]{color:#c4b5fd!important}
+body.dark [style*=" color: rgb(71, 85, 105)"],body.dark [style*=" color: rgb(102, 102, 102)"]{color:var(--t2)!important}
+
+body.dark .ffh-tools .tb>div:last-child>div[title]{background:rgba(245,158,11,.12)!important;color:#fcd34d!important}
+
+/* ── clearable filters (× on each active filter) ── */
+.fclr{position:relative;display:inline-flex;align-items:center;min-width:0}
+.fclr>select,.fclr>input{width:100%}
+.fclr.on>select{padding-right:50px!important;border-color:var(--acc)!important;color:var(--t1);background-color:var(--acc-soft)}
+.fclr-in{flex:1}
+.fclr-in.on>input{padding-right:34px!important}
+.fclr-x{position:absolute;right:26px;top:50%;transform:translateY(-50%);width:20px;height:20px;border-radius:50%;border:0;background:rgba(239,68,68,.14);color:#ef4444;font-size:15px;font-weight:700;line-height:1;display:grid;place-items:center;cursor:pointer;padding:0;z-index:1}
+.fclr-in .fclr-x{right:9px}
+.fclr-x:hover{background:#ef4444;color:#fff;transform:translateY(-50%) scale(1.1)}
+.isi .fclr{width:100%}
+.isi .ico{z-index:2}
+/* ── pager (100 per page) ── */
+.pgr{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:4px 0 14px;padding:8px 12px;border:1px solid var(--bdr);border-radius:14px;background:linear-gradient(180deg,var(--card2),var(--card))}
+.pgr-info{font-size:12px;color:var(--t3)}.pgr-info b{color:var(--t1);font-family:'Inter',sans-serif}
+.pgr-btns{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
+.pgr-btns button{min-width:30px;height:30px;padding:0 10px;border-radius:9px;border:1px solid var(--bdr);background:var(--bg2);color:var(--t2);font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif}
+.pgr-btns button:hover:not(:disabled){border-color:var(--acc);color:var(--t1)}
+.pgr-btns button.on{background:linear-gradient(135deg,var(--acc),var(--acc2));border-color:transparent;color:#fff;box-shadow:0 4px 14px rgba(59,116,216,.35)}
+.pgr-btns button:disabled{opacity:.35;cursor:not-allowed}
+.pgr-gap{color:var(--t3);padding:0 4px}
+.ff-mdrop{z-index:9999!important;animation:ffDrop .18s var(--ease) both}
+body.dark .ff-mdrop{background:linear-gradient(180deg,var(--card2),var(--card))!important}
+
+/* ═══ DENSITY: tighter sizing so the app fits laptops with 125–150% display scaling ═══ */
+body{font-size:13px}
+.ffh-row{padding:8px 24px;gap:10px}
+.ffh-mark{width:36px;height:36px;border-radius:11px}.ffh-mark img{width:28px;height:28px}
+.ffh-brand b{font-size:15px}.ffh-brand span{font-size:11px}
+.ffh-seg button{padding:5px 10px;font-size:12px}
+.ffh-ib,.ffh-tools .tb button[style*="width: 34px"],.ffh-tools .tb>div:last-child>div>button{height:32px!important;min-width:32px;width:32px!important;font-size:14px!important;border-radius:10px!important}
+.ffh-ib{width:auto!important}
+.ffh-user>.ffh-ib{height:36px!important}
+.ffh-tools .tb .ap,.ffh-tools .tb>div:last-child>div[title]{height:30px;font-size:11.5px!important;padding:0 10px!important}
+.ffh-tab{padding:8px 11px 10px;font-size:12.5px;gap:6px}.ffh-tab .e{font-size:14px}
+.sc{padding:20px max(24px,calc((100% - 1200px)/2))}
+.sh{margin-bottom:18px}
+.st{font-size:20px}
+.ff-hello{font-size:26px!important;line-height:1.3!important}
+.sgr{gap:12px;margin-bottom:18px}
+.scd{padding:13px 16px}.sl{font-size:11.5px}.sv{font-size:24px;margin-top:6px}
+.alr{padding:10px 14px;font-size:12.5px;margin-bottom:8px}
+.cd[style*="padding: 24px"]{padding:18px!important}
+.tr{padding:10px 14px;gap:12px;margin-bottom:6px}.ttl{font-size:13px}
+.pc{padding:16px 20px}
+.bmd{padding:8px 15px;font-size:13px}.bsm{padding:5px 11px;font-size:12px}
+.ip{padding:8px 12px;font-size:13px}
+.fs{padding:6px 10px;font-size:12px}
+.fl label,.dfl label{font-size:10.5px}
+.mhd{padding:16px 20px}.mbd{padding:18px 20px}.mtl{font-size:16px}
+/* task / project side panel: narrower and compact */
+.pan{width:min(540px,94vw)}
+.phd{padding:16px 20px;gap:12px}
+.phd [style*="font-size: 18px"]{font-size:16px!important}
+.phd .bg,.phd [class^="dir-"]{font-size:11px!important;padding:2px 8px!important}
+.psb{padding:8px 20px;gap:4px}
+.stb{padding:4px 9px;font-size:11px;border-radius:8px}
+.ssep{width:10px}
+.ptb{padding:0 14px}.pt{padding:9px 11px;font-size:12.5px}
+.pb{padding:16px 20px}
+.dgr{gap:10px}
+.dfl{padding:10px 12px;border-radius:12px}
+.dfl label{margin-bottom:6px}
+.pan .ip,.pan .fs,.pan select,.pan input{padding:6px 10px!important;font-size:12.5px!important;border-radius:10px!important}
+.pan .dir-ms,.pan .dir-em,.pan .dir-no,.pan [style*="border-radius: 8px"][style*="cursor: pointer"]{font-size:11.5px}
+.pan [style*="font-size: 18px"]{font-size:15px!important}
+.pan .av.avm{width:30px;height:30px;font-size:11px}
+@media(min-width:1600px){body{font-size:13.5px}.pan{width:600px}}
+
+/* ═══ TABLET / MOBILE ═══ */
+@media(max-width:1100px){
+  .ffh-row{flex-wrap:wrap;padding:10px 16px;row-gap:8px}
+  .ffh-seg{order:3;width:100%}
+  .ffh-tabs{padding:0 10px}
+}
+@media(max-width:768px){
+  .ffh-row{gap:8px;padding:8px 12px}
+  .ffh-brand span{display:none}
+  .ffh-mark{width:36px;height:36px;border-radius:11px}.ffh-mark img{width:28px;height:28px}
+  .ffh-brand b{font-size:15px}
+  .ffh-tools{order:4;width:100%;overflow-x:auto;scrollbar-width:none;padding:2px 0}
+  .ffh-tools::-webkit-scrollbar{display:none}
+  .ffh-tools .tb>div:last-child>*{flex-shrink:0}
+  .ffh-user .un2{display:none}
+  .ffh-user>.ffh-ib{padding:0 4px;width:40px}
+  .ffh-tab{padding:9px 11px 11px;font-size:13px}
+  .sc{padding:16px 14px calc(100px + env(safe-area-inset-bottom))}
+  .sh{flex-wrap:wrap;gap:12px;margin-bottom:18px}
+  .st{font-size:21px}
+  .ff-hello{font-size:25px!important;line-height:1.3!important}
+  .sgr{gap:10px;margin-bottom:18px}
+  .scd{padding:14px}
+  .sv{font-size:26px}
+  .alr{padding:10px 12px;font-size:12.5px;align-items:flex-start}
+  .alr>svg{flex-shrink:0;margin-top:2px}
+  .tr{padding:12px;gap:10px;flex-wrap:wrap}
+  .ttl{max-width:none;white-space:normal}
+  .trg{margin-left:0;width:100%;justify-content:flex-end}
+  .cd[style*="padding: 24px"]{padding:16px!important}
+  .pc{padding:16px}
+  .fb{padding:10px 12px;gap:8px}
+  .fb>*{flex:1 1 140px}
+  .ip,.fs,select,textarea,input{font-size:16px!important}
+  .dgr{grid-template-columns:1fr}
+  .ptb{overflow-x:auto;padding:0 12px;scrollbar-width:none}.pt{white-space:nowrap}
+  .phd,.pb{padding:16px}
+  .psb{padding:10px 16px;overflow-x:auto;flex-wrap:nowrap}
+  .stb{white-space:nowrap}
+  .pan{width:100vw}
+  .sc table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch;white-space:nowrap}
+  .sc :has(>[style*="grid-template-columns: 1fr 100px"]),.sc :has(>[style*="grid-template-columns: 1fr 130px"]),.sc :has(>[style*="grid-template-columns: 32px 1fr"]){overflow-x:auto;-webkit-overflow-scrolling:touch}
+  [style*="grid-template-columns: 1fr 100px"],[style*="grid-template-columns: 1fr 130px"],[style*="grid-template-columns: 32px 1fr"]{min-width:600px}
+  .sc [style*="grid-template-columns: repeat(4, 1fr)"]{grid-template-columns:1fr 1fr!important}
+  .sc [style*="grid-template-columns: 1fr 1fr 1fr"]{grid-template-columns:1fr!important}
+  .mov{align-items:flex-end;padding:0}
+  .mod{max-width:100%!important;border-radius:22px 22px 0 0;max-height:92dvh;animation:ffSheet .38s var(--ease) both;padding-bottom:env(safe-area-inset-bottom)}
+  .mhd,.mbd{padding:16px}
+  .lbg{padding:16px}.lc{padding:28px 20px}.dgd{grid-template-columns:1fr}
+  .ff-fab{left:auto;right:18px;bottom:calc(18px + env(safe-area-inset-bottom));width:56px;height:56px}
+  .ff-fab-mini{display:none}
+}
+@media(max-width:420px){.sgr{grid-template-columns:1fr 1fr}.ttgr{grid-template-columns:1fr}}
+@media(hover:none){.scd:hover,.pc:hover,.ttc:hover,.tr:hover{transform:none}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 </style>
 </head>
 <body>
@@ -299,10 +669,28 @@ const authUpdatePw=(newPw)=>auth.currentUser?auth.currentUser.updatePassword(new
 const dbGet=path=>db.ref(path).once('value').then(s=>s.val());
 const dbSet=(path,val)=>db.ref(path).set(val);
 const dbOn=(path,cb)=>{const ref=db.ref(path);ref.on('value',s=>cb(s.val()));return()=>ref.off();};
+
+// ─── EMAIL NOTIFICATIONS (Google Apps Script → Gmail) ────────────────────────
+// Settings live in ncsflow/settings/email (Admin → Email Setup, Global Admin only).
+// The page only sends IDs + short text. The Apps Script itself decides the recipients
+// from ncsflow/users + the per-user rules (Email Setup screen), so the page cannot email arbitrary people.
+// No passwords or API keys are stored in this file.
+const EMAIL_CFG_PATH='ncsflow/settings/email';
+const sendEmailNotif=(payload)=>{
+  dbGet(EMAIL_CFG_PATH).then(cfg=>{
+    if(!cfg||!cfg.enabled||!cfg.scriptUrl)return;
+    const hasMention=(payload.mentions||[]).length>0;
+    if(payload.event==='status'&&cfg.onStatus===false)return;
+    if(payload.event==='comment'&&cfg.onComment===false&&!hasMention)return; // mentions always email
+    const body=JSON.stringify({...payload,key:cfg.key||'',appUrl:location.origin+location.pathname,sentAt:new Date().toISOString()});
+    // text/plain + no-cors avoids a CORS preflight, which Apps Script web apps don't answer
+    fetch(cfg.scriptUrl,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body}).catch(()=>{});
+  }).catch(()=>{});
+};
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─── DARK MODE ────────────────────────────────────────────────────────────────
-const getDarkMode=()=>{try{return localStorage.getItem('ncsflow_dark')==='1';}catch{return false;}};
+const getDarkMode=()=>{try{const v=localStorage.getItem('ncsflow_dark');return v===null?true:v==='1';}catch{return true;}};
 const setDarkMode=(v)=>{try{localStorage.setItem('ncsflow_dark',v?'1':'0');}catch{}document.body.classList.toggle('dark',v);};
 // Apply on load
 if(getDarkMode())document.body.classList.add('dark');
@@ -580,6 +968,36 @@ const Av=({user,sz='m'})=>{
   return React.createElement('div',{className:`av ${s} ${c}`},user?.avatar||'?');
 };
 
+// ─── FILTER HELPERS: clearable select / search + 100-per-page pager ────────────
+// A filter <select> whose first option is "All …" (value '') gets a small × to reset just that filter.
+const FSel=({value,onChange,children,className='fs',style,...rest})=>{
+  const kids=React.Children.toArray(children);
+  const first=kids[0];
+  const clearable=value!==''&&value!=null&&first&&first.props&&first.props.value==='';
+  return React.createElement('span',{className:'fclr'+(clearable?' on':'')},
+    React.createElement('select',{className,value,onChange,style,...rest},children),
+    clearable&&React.createElement('button',{type:'button',className:'fclr-x',title:'Remove filter','aria-label':'Remove filter',onClick:e=>{e.preventDefault();e.stopPropagation();onChange({target:{value:''}});}},'×')
+  );
+};
+const FInp=({value,onChange,...rest})=>React.createElement('span',{className:'fclr fclr-in'+(value?' on':'')},
+  React.createElement('input',{value,onChange,...rest}),
+  value&&React.createElement('button',{type:'button',className:'fclr-x',title:'Clear search','aria-label':'Clear search',onClick:e=>{e.preventDefault();onChange({target:{value:''}});}},'×')
+);
+const PAGE_SIZE=100;
+const Pager=({total,page,setPage,size=PAGE_SIZE})=>{
+  const pages=Math.ceil(total/size);
+  if(total<=size)return null;
+  const from=page*size+1,to=Math.min(total,(page+1)*size);
+  const nums=[];for(let i=0;i<pages;i++){if(i===0||i===pages-1||Math.abs(i-page)<=1)nums.push(i);else if(nums[nums.length-1]!=='…')nums.push('…');}
+  return React.createElement('div',{className:'pgr'},
+    React.createElement('span',{className:'pgr-info'},'Showing ',React.createElement('b',null,from,'–',to),' of ',React.createElement('b',null,total)),
+    React.createElement('div',{className:'pgr-btns'},
+      React.createElement('button',{disabled:page===0,onClick:()=>setPage(page-1),'aria-label':'Previous page'},'‹'),
+      nums.map((n,i)=>n==='…'?React.createElement('span',{key:'e'+i,className:'pgr-gap'},'…'):React.createElement('button',{key:n,className:n===page?'on':'',onClick:()=>setPage(n)},n*size+1,'–',Math.min(total,(n+1)*size))),
+      React.createElement('button',{disabled:page>=pages-1,onClick:()=>setPage(page+1),'aria-label':'Next page'},'›')
+    )
+  );
+};
 const Btn=({ch,v='pr',sz='md',cls='',onClick,dis,type='button'})=>{
   const vs={pr:'bpr',se:'bse',da:'bda',gh:'bgh',in:'bin'}[v]||'bpr';
   const ss={sm:'bsm',md:'bmd',lg:'blg'}[sz]||'bmd';
@@ -893,6 +1311,7 @@ const TaskPanel=({task:init,onClose,onUpdate,user})=>{
     upd({...task,status:ns,auditLog:[...(task.auditLog||[]),log],completedAt:ns==='completed'?now:(task.completedAt||null)});
     const soundEnabled=localStorage.getItem('ncsflow_sound')!=='0';
     if(soundEnabled){if(ns==='completed')playSound('complete');else playSound('notify');}
+    sendEmailNotif({event:'status',taskId:task.id,taskTitle:task.title||'',department:task.department||'',assignedTo:task.assignedTo||'',isTicket:!!task.isTicket,oldStatus:ST[task.status]?.l||task.status||'',newStatus:ST[ns]?.l||ns,actorId:user.id});
   };
 
   const addCmt=()=>{
@@ -909,6 +1328,7 @@ const TaskPanel=({task:init,onClose,onUpdate,user})=>{
     const soundEnabled=localStorage.getItem('ncsflow_sound')!=='0';
     if(soundEnabled&&mentionedUsers.length>0)playSound('mention');
     else if(soundEnabled)playSound('notify');
+    sendEmailNotif({event:'comment',taskId:task.id,taskTitle:task.title||'',department:task.department||'',assignedTo:task.assignedTo||'',isTicket:!!task.isTicket,comment:cmt.slice(0,2000),mentions:mentionedUsers.map(u=>u.id),actorId:user.id});
     setCmt('');
   };
 
@@ -1377,6 +1797,95 @@ const ForceChangePassword=({user,onChanged,onLogout})=>{
   );
 };
 
+// EMAIL NOTIFICATIONS SETUP (Global Admin)
+// rules: {actorUserId:[recipientUserIds]}. No rule = no email for that user's actions
+// (people @mentioned in a comment always get an email).
+const EmailSetupScreen=({user})=>{
+  const {users}=useCtx();
+  const DEF={enabled:false,scriptUrl:'',key:'',senderName:'FinanceFlow',onStatus:true,onComment:true,rules:{}};
+  const [cfg,setCfg]=useState(DEF);
+  const [loaded,setLoaded]=useState(false);
+  const [msg,setMsg]=useState('');
+  const [q,setQ]=useState('');
+  const [openRow,setOpenRow]=useState('');
+  useEffect(()=>{dbGet(EMAIL_CFG_PATH).then(v=>{setCfg({...DEF,...(v||{}),rules:(v&&v.rules)||{}});setLoaded(true);}).catch(()=>setLoaded(true));},[]);
+  const set=(k,v)=>setCfg(c=>({...c,[k]:v}));
+  const genKey=()=>{const a=new Uint8Array(18);crypto.getRandomValues(a);set('key',Array.from(a,b=>b.toString(16).padStart(2,'0')).join(''));};
+  const validUrl=u=>/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test((u||'').trim());
+  const active=(users||[]).filter(u=>u.isActive);
+  const withEmail=active.filter(u=>u.email);
+  const ruleOf=id=>(cfg.rules||{})[id]||[];
+  const toggleRcpt=(actorId,rid)=>setCfg(c=>{const cur=(c.rules||{})[actorId]||[];const nx=cur.includes(rid)?cur.filter(x=>x!==rid):[...cur,rid];return {...c,rules:{...(c.rules||{}),[actorId]:nx}};});
+  const clearRule=actorId=>setCfg(c=>{const r={...(c.rules||{})};delete r[actorId];return {...c,rules:r};});
+  const copyRule=actorId=>setCfg(c=>{const src=(c.rules||{})[actorId]||[];const r={...(c.rules||{})};active.forEach(u=>{if(u.id!==actorId)r[u.id]=src.filter(x=>x!==u.id);});return {...c,rules:r};});
+  const save=()=>{
+    if(cfg.enabled&&!validUrl(cfg.scriptUrl))return setMsg('⚠️ Script URL must look like https://script.google.com/macros/s/…/exec');
+    if(cfg.enabled&&!cfg.key)return setMsg('⚠️ Generate a security key first, then paste it in the script.');
+    const rules={};Object.entries(cfg.rules||{}).forEach(([k,v])=>{if(Array.isArray(v)&&v.length)rules[k]=v;});
+    const clean={...cfg,rules,scriptUrl:(cfg.scriptUrl||'').trim(),updatedBy:user.id,updatedAt:new Date().toISOString()};
+    dbSet(EMAIL_CFG_PATH,clean).then(()=>{setCfg(clean);setMsg('✅ Saved');setTimeout(()=>setMsg(''),2500);}).catch(e=>setMsg('❌ '+(e.message||e)));
+  };
+  const test=()=>{
+    if(!validUrl(cfg.scriptUrl))return setMsg('⚠️ Enter a valid Script URL first');
+    fetch(cfg.scriptUrl.trim(),{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({event:'test',key:cfg.key||'',actorId:user.id,appUrl:location.origin+location.pathname,sentAt:new Date().toISOString()})})
+      .then(()=>setMsg('📨 Test sent (save first if you changed the key). Check '+(user.email||'your inbox')+' in a minute.'))
+      .catch(e=>setMsg('❌ '+(e.message||e)));
+  };
+  const Tog=({k,l,sub})=>React.createElement('label',{style:{display:'flex',alignItems:'flex-start',gap:10,padding:'10px 0',borderBottom:'1px solid var(--bdr)',cursor:'pointer'}},
+    React.createElement('input',{type:'checkbox',checked:!!cfg[k],onChange:e=>set(k,e.target.checked),style:{marginTop:3,width:16,height:16,accentColor:'var(--or)',flexShrink:0}}),
+    React.createElement('div',null,
+      React.createElement('div',{style:{fontSize:13.5,fontWeight:600,color:'var(--t1)'}},l),
+      sub&&React.createElement('div',{style:{fontSize:12,color:'var(--t3)',marginTop:2}},sub)));
+  const card=(title,sub,...ch)=>React.createElement('div',{className:'cd',style:{padding:20,marginBottom:16}},
+    React.createElement('div',{style:{fontSize:14.5,fontWeight:700,color:'var(--t1)'}},title),
+    sub&&React.createElement('div',{style:{fontSize:12.5,color:'var(--t3)',margin:'4px 0 10px'}},sub),...ch);
+  const chip=(on,label,onClick,key)=>React.createElement('button',{key,type:'button',onClick,style:{border:'1.5px solid '+(on?'var(--or)':'var(--bdr)'),background:on?'var(--or)':'transparent',color:on?'#fff':'var(--t2)',borderRadius:999,padding:'4px 10px',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'var(--fb)'}},(on?'✓ ':'')+label);
+  if(!loaded)return React.createElement('div',{className:'sc fi'},'Loading…');
+  const shown=active.filter(u=>!q||(u.fullName||'').toLowerCase().includes(q.toLowerCase()));
+  return React.createElement('div',{className:'sc fi',style:{maxWidth:900}},
+    React.createElement('div',{className:'sh'},
+      React.createElement('div',null,
+        React.createElement('div',{className:'st'},'📧 Email Notifications'),
+        React.createElement('div',{className:'ss'},'An email goes out on every status change and comment, from your Gmail through Google Apps Script'))),
+    card('Connection',null,
+      React.createElement(Tog,{k:'enabled',l:'Enable email notifications',sub:'Turn this off to stop all emails right away'}),
+      React.createElement('div',{style:{height:10}}),
+      React.createElement(Fld,{lbl:'Apps Script Web App URL',ch:React.createElement('input',{className:'ip',placeholder:'https://script.google.com/macros/s/…/exec',value:cfg.scriptUrl,onChange:e=>set('scriptUrl',e.target.value)})}),
+      React.createElement(Fld,{lbl:'Security key (paste the same value as SHARED_KEY in the script)',ch:
+        React.createElement('div',{style:{display:'flex',gap:8,flexWrap:'wrap'}},
+          React.createElement('input',{className:'ip',readOnly:true,value:cfg.key,placeholder:'Click Generate',style:{fontFamily:'var(--fm)',flex:'1 1 220px'}}),
+          React.createElement(Btn,{v:'se',ch:'Generate',onClick:genKey}),
+          React.createElement(Btn,{v:'se',ch:'Copy',dis:!cfg.key,onClick:()=>{try{navigator.clipboard.writeText(cfg.key);setMsg('Copied');}catch{}}}))}),
+      React.createElement(Fld,{lbl:'Sender name (shown in the From field)',ch:React.createElement('input',{className:'ip',value:cfg.senderName,onChange:e=>set('senderName',e.target.value)})}),
+      React.createElement('div',{style:{fontSize:12,color:'var(--t3)'}},'Emails are sent from the Gmail account that owns the Apps Script.')),
+    card('When to send',null,
+      React.createElement(Tog,{k:'onStatus',l:'Task / ticket status changed',sub:'From the status buttons in the task panel'}),
+      React.createElement(Tog,{k:'onComment',l:'New comment',sub:'Every comment on a task or ticket'}),
+      React.createElement('div',{style:{fontSize:12.5,color:'var(--t2)',paddingTop:10}},'📣 Anyone @mentioned in a comment always gets an email.')),
+    card('Who receives it: per user','For each user, pick who gets the email when that user changes a status or comments. A user with no selection sends no emails (only @mentions). Nobody gets an email about their own action.',
+      React.createElement('input',{className:'ip',placeholder:'🔍 Search user…',value:q,onChange:e=>setQ(e.target.value),style:{marginBottom:10}}),
+      ...shown.map(a=>{
+        const r=ruleOf(a.id);const open=openRow===a.id;
+        const names=r.map(id=>(active.find(u=>u.id===id)||{}).fullName).filter(Boolean);
+        return React.createElement('div',{key:a.id,style:{borderBottom:'1px solid var(--bdr)',padding:'10px 0'}},
+          React.createElement('div',{style:{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',cursor:'pointer'},onClick:()=>setOpenRow(open?'':a.id)},
+            React.createElement('div',{style:{flex:'1 1 200px',minWidth:0}},
+              React.createElement('div',{style:{fontSize:13.5,fontWeight:700,color:'var(--t1)'}},a.fullName,' ',React.createElement('span',{style:{fontSize:11,fontWeight:600,color:ROLE[a.role]?.tx||'var(--t3)'}},ROLE[a.role]?.l||a.role)),
+              React.createElement('div',{style:{fontSize:12,color:'var(--t3)',marginTop:2}},r.length?'→ '+names.join(', '):'→ No emails (mentions only)')),
+            React.createElement('span',{style:{fontSize:12,color:'var(--or)',fontWeight:700}},open?'Close ▲':'Edit ▼')),
+          open&&React.createElement('div',{style:{marginTop:10}},
+            React.createElement('div',{style:{display:'flex',flexWrap:'wrap',gap:6}},
+              withEmail.filter(u=>u.id!==a.id).map(u=>chip(r.includes(u.id),u.fullName,()=>toggleRcpt(a.id,u.id),u.id))),
+            React.createElement('div',{style:{display:'flex',gap:8,marginTop:10,flexWrap:'wrap'}},
+              React.createElement(Btn,{v:'gh',sz:'sm',ch:'Clear',onClick:()=>clearRule(a.id)}),
+              React.createElement(Btn,{v:'gh',sz:'sm',ch:'Apply this list to all users',dis:!r.length,onClick:()=>copyRule(a.id)}))));
+      })),
+    React.createElement('div',{style:{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap',marginBottom:30}},
+      React.createElement(Btn,{v:'pr',ch:'💾 Save settings',onClick:save}),
+      React.createElement(Btn,{v:'se',ch:'📨 Send test email',onClick:test}),
+      msg&&React.createElement('span',{style:{fontSize:13,color:'var(--t2)'}},msg)));
+};
+
 // PASSWORD RESET REQUESTS SCREEN (for Global Admin)
 const PwResetScreen=({users,setUsers})=>{
   const [requests,setRequests]=useState([]);
@@ -1699,6 +2208,7 @@ const Sidebar=({screen,setScreen,user,onLogout,open,setOpen,activeDept,setActive
       {id:'config',l:'Settings',ic:'tag'},
       {id:'users',l:'Users',ic:'users'},
       {id:'pwresets',l:'Password Resets',ic:'lock'},
+      {id:'emailsetup',l:'Email Setup',ic:'tag'},
     ]:[]),
     {id:'meetingreview',l:'Meeting Review',ic:'calendar'},
   ]:[];
@@ -1844,6 +2354,134 @@ const Sidebar=({screen,setScreen,user,onLogout,open,setOpen,activeDept,setActive
     )
   );
 };
+// ─── TOP NAVIGATION SHELL (v2 design) ────────────────────────────────────────
+// Replaces the left sidebar with a glass header: brand · department pills · tools · user menu,
+// and a scrollable row of tabs underneath. Uses the same page lists & permissions as the sidebar.
+const FF_EMOJI={dashboard:'🏠',tasks:'📋',meetings:'📅',completed:'✅',projects:'📁',deptoverview:'📊',review:'👁️',projectcost:'⏱️',emphours:'👥',meetingreview:'🗓️',newproject:'➕',overview:'🧭',hoursmatrix:'🧮',allemphours:'👥',crossmeeting:'🤝',config:'⚙️',users:'👤',pwresets:'🔐',emailsetup:'📧',tickets_open:'🎫',tickets_done:'☑️',support:'🆘',mytickets:'🎟️',changepw:'🔑'};
+const TopNav=({screen,setScreen,user,onLogout,activeDept,setActiveDept,children})=>{
+  const {tasks,projects}=useCtx();
+  const [menu,setMenu]=useState(null); // {id, x, y}
+  const isGlobal=user.role==='global_admin';
+  const isSupport=user.role==='support';
+  const isAdm=isGlobal||user.role==='admin';
+  const userDepts=(user.departments&&user.departments.length>0)?DEPARTMENTS.filter(d=>(user.departments||[]).includes(d.id)):DEPARTMENTS;
+  const MAIN=isSupport?[
+    {id:'support',l:'Submit Ticket'},{id:'mytickets',l:'My Tickets'},{id:'tasks',l:'Track My Tasks'},
+  ]:[
+    {id:'dashboard',l:'Dashboard'},{id:'tasks',l:'Tasks'},{id:'meetings',l:'Meetings'},
+    {id:'completed',l:'Completed'},{id:'projects',l:'Projects'},{id:'deptoverview',l:'Project Status'},
+  ];
+  const MANAGE=isSupport?[]:[
+    ...(isAdm?[{id:'review',l:'Admin Preview'},{id:'projectcost',l:'Resource Hours'},{id:'emphours',l:'Employee Hours'},{id:'meetingreview',l:'Meeting Review'}]:[]),
+  ];
+  const ADMIN=isGlobal?[
+    {id:'newproject',l:'New Project'},{id:'overview',l:'Project Overview'},{id:'hoursmatrix',l:'Hours Matrix'},
+    {id:'allemphours',l:'All Employee Hours'},{id:'crossmeeting',l:'Cross-Dept Meeting'},{id:'config',l:'Settings'},
+    {id:'users',l:'Users'},{id:'pwresets',l:'Password Resets'},{id:'emailsetup',l:'Email Setup'},
+  ]:[];
+  const SUPPORT=isGlobal?[{id:'tickets_open',l:'Open Tickets'},{id:'tickets_done',l:'Closed Tickets'}]:[];
+  const go=id=>{setScreen(id);setMenu(null);};
+  const openMenu=(id,e)=>{
+    const r=e.currentTarget.getBoundingClientRect();
+    if(menu&&menu.id===id){setMenu(null);return;}
+    const w=240,x=Math.max(8,Math.min(window.innerWidth-w-8,id==='user'?r.right-w:r.left));
+    setMenu({id,x,y:r.bottom+8});
+  };
+  useEffect(()=>{
+    if(!menu)return;
+    const close=()=>setMenu(null);
+    const onKey=e=>{if(e.key==='Escape')close();};
+    window.addEventListener('resize',close);window.addEventListener('keydown',onKey);
+    const t=setTimeout(()=>document.addEventListener('click',close),0);
+    return()=>{clearTimeout(t);window.removeEventListener('resize',close);window.removeEventListener('keydown',onKey);document.removeEventListener('click',close);};
+  },[menu]);
+  const openCount=tasks.filter(t=>t.status!=='completed'&&(!activeDept||t.department===activeDept)).length;
+  const projCount=projects.filter(p=>p.status!=='archived').length;
+  const groupOn=list=>list.some(n=>n.id===screen);
+  const tab=(n)=>React.createElement('button',{key:n.id,className:'ffh-tab'+(screen===n.id?' on':''),onClick:()=>go(n.id)},
+    React.createElement('span',{className:'e'},FF_EMOJI[n.id]||'•'),n.l);
+  const groupTab=(id,emoji,label,list)=>list.length>0&&React.createElement('button',{key:id,className:'ffh-tab'+(groupOn(list)?' on':''),onClick:e=>openMenu(id,e)},
+    React.createElement('span',{className:'e'},emoji),
+    groupOn(list)?(list.find(n=>n.id===screen)||{}).l:label,
+    id==='admin'&&React.createElement(PwResetBadge,null),
+    React.createElement('span',{className:'car'},'▾'));
+  const menuList={manage:MANAGE,admin:ADMIN,support:SUPPORT}[menu&&menu.id];
+  return React.createElement('header',{className:'ffh'},
+    React.createElement('div',{className:'ffh-row'},
+      React.createElement('button',{className:'ffh-brand',onClick:()=>go(isSupport?'support':'dashboard'),title:'Home'},
+        React.createElement('div',{className:'ffh-mark'},React.createElement('img',{src:NCS_LOGO_B64,alt:'NCS'})),
+        React.createElement('div',{style:{minWidth:0}},
+          React.createElement('b',null,'NCS Flow',React.createElement('i',null,'OPS')),
+          React.createElement('span',null,projCount,' projects · ',openCount,' open tasks')
+        )
+      ),
+      !isSupport&&userDepts.length>0&&React.createElement('div',{className:'ffh-seg',role:'tablist','aria-label':'Department'},
+        React.createElement('button',{className:!activeDept?'on':'',onClick:()=>setActiveDept('')},'🌍',' All'),
+        userDepts.map(d=>React.createElement('button',{key:d.id,className:activeDept===d.id?'on':'',onClick:()=>setActiveDept(d.id),title:d.name},d.icon,' ',d.name))
+      ),
+      React.createElement('div',{className:'ffh-tools'},children),
+      React.createElement('div',{className:'ffh-user'},
+        React.createElement('button',{className:'ffh-ib',onClick:e=>openMenu('user',e),title:user.fullName},
+          React.createElement(Av,{user,sz:'s'}),
+          React.createElement('span',{className:'un2'},React.createElement('b',null,user.fullName.split(' ')[0]),React.createElement('small',null,ROLE[user.role].l))
+        )
+      )
+    ),
+    React.createElement('nav',{className:'ffh-tabs'},
+      MAIN.map(tab),
+      groupTab('manage','🧰','Manage',MANAGE),
+      groupTab('admin','🛠️','Admin',ADMIN),
+      groupTab('support','🎫','Support',SUPPORT)
+    ),
+    menu&&React.createElement(Portal,null,
+      React.createElement('div',{className:'ffh-menu',style:{left:menu.x,top:menu.y},onClick:e=>e.stopPropagation()},
+        menu.id==='user'?React.createElement(React.Fragment,null,
+          React.createElement('div',{className:'mh'},user.fullName),
+          React.createElement('button',{className:screen==='changepw'?'on':'',onClick:()=>go('changepw')},React.createElement('span',null,'🔑'),'Change my password'),
+          React.createElement('hr'),
+          React.createElement('button',{className:'danger',onClick:()=>{setMenu(null);onLogout();}},React.createElement('span',null,'⎋'),'Sign out')
+        ):(menuList||[]).map(n=>React.createElement('button',{key:n.id,className:screen===n.id?'on':'',onClick:()=>go(n.id)},React.createElement('span',null,FF_EMOJI[n.id]||'•'),n.l,n.id==='pwresets'&&React.createElement(PwResetBadge,null)))
+      )
+    )
+  );
+};
+// Floating actions: quick "new task" (gold +) and back-to-top
+const FFFab=({screen,setScreen,user})=>{
+  if(user.role==='support')return null;
+  const newTask=()=>{
+    if(screen==='tasks'){window.dispatchEvent(new Event('ff-newtask'));}
+    else{window.__ffOpenNew=true;setScreen('tasks');}
+  };
+  return React.createElement('button',{className:'ff-fab',onClick:newTask,title:'New task','aria-label':'New task'},'+');
+};
+// Animated constellation background (inspired by the reference design)
+(function ffStarfield(){
+  if(window.__ffFx)return;window.__ffFx=1;
+  const glow=document.createElement('div');glow.className='ff-glow';
+  const c=document.createElement('canvas');c.id='ff-fx';
+  document.body.prepend(c);document.body.prepend(glow);
+  const ctx=c.getContext('2d');if(!ctx)return;
+  const reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let W=0,H=0,dpr=1,pts=[];
+  const size=()=>{dpr=Math.min(window.devicePixelRatio||1,2);W=window.innerWidth;H=window.innerHeight;c.width=W*dpr;c.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);
+    const n=Math.min(90,Math.round(W*H/16000));pts=Array.from({length:n},()=>({x:Math.random()*W,y:Math.random()*H,vx:(Math.random()-.5)*.18,vy:(Math.random()-.5)*.18,r:Math.random()*1.4+.4,g:Math.random()<.18,p:Math.random()*6.28}));};
+  const draw=t=>{
+    ctx.clearRect(0,0,W,H);
+    const dark=document.body.classList.contains('dark');
+    for(let i=0;i<pts.length;i++){const a=pts[i];
+      if(!reduce){a.x+=a.vx;a.y+=a.vy;if(a.x<0||a.x>W)a.vx*=-1;if(a.y<0||a.y>H)a.vy*=-1;}
+      for(let j=i+1;j<pts.length;j++){const b=pts[j],dx=a.x-b.x,dy=a.y-b.y,d=dx*dx+dy*dy;
+        if(d<15000){ctx.strokeStyle=(dark?'rgba(91,151,247,':'rgba(37,99,235,')+(0.16*(1-d/15000)).toFixed(3)+')';ctx.lineWidth=.7;ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();}}
+      const tw=.55+.45*Math.sin((t||0)/900+a.p);
+      ctx.fillStyle=a.g?'rgba(216,178,90,'+(.85*tw)+')':(dark?'rgba(170,200,255,':'rgba(37,99,235,')+(.7*tw)+')';
+      ctx.beginPath();ctx.arc(a.x,a.y,a.r,0,6.283);ctx.fill();}
+  };
+  let raf=0;const loop=t=>{draw(t);raf=requestAnimationFrame(loop);};
+  size();window.addEventListener('resize',()=>{size();if(reduce)draw(0);});
+  if(reduce){draw(0);}else{raf=requestAnimationFrame(loop);
+    document.addEventListener('visibilitychange',()=>{if(document.hidden)cancelAnimationFrame(raf);else raf=requestAnimationFrame(loop);});}
+})();
+// ─────────────────────────────────────────────────────────────────────────────
 // MENTIONS BELL COMPONENT
 const MentionsBell=({user,onOpenTask})=>{
   const {tasks,users}=useCtx();
@@ -1860,6 +2498,39 @@ const MentionsBell=({user,onOpenTask})=>{
       }
     });
   });
+  // Global Admin & Admin: every comment and task action by others also lands here (last 30 days)
+  const isAdminViewer=user.role==='global_admin'||user.role==='admin';
+  if(isAdminViewer){
+    const since=Date.now()-30*864e5;
+    const myDepts=user.departments||[];
+    const nm=id=>{const u=users.find(x=>x.id===id);return u?u.fullName:'Unassigned';};
+    const describe=a=>{
+      if(a.action==='created')return 'Created this task';
+      if(a.action==='reassigned')return 'Reassigned to '+nm(a.newValue);
+      if(a.fieldChanged==='status')return 'Status: '+((ST[a.oldValue]||{}).l||a.oldValue||'—')+' → '+((ST[a.newValue]||{}).l||a.newValue);
+      if(a.fieldChanged==='dueDate')return 'Due date → '+(a.newValue||'none');
+      if(a.fieldChanged==='department')return 'Department → '+(((DEPARTMENTS.find(d=>d.id===a.newValue))||{}).name||a.newValue||'none');
+      if(a.fieldChanged==='taskType')return 'Task type changed';
+      return (a.action||'Updated').replace(/_/g,' ');
+    };
+    const feed=[];
+    tasks.forEach(t=>{
+      if(user.role==='admin'&&myDepts.length&&t.department&&!myDepts.includes(t.department))return;
+      (t.comments||[]).forEach(c=>{
+        if(!c||c.userId===user.id||(c.mentions&&c.mentions.includes(user.id)))return;
+        const ts=c.createdAt?new Date(c.createdAt).getTime():0;if(ts<since)return;
+        feed.push({taskId:t.id,taskTitle:t.title,commentId:'c_'+c.id,from:c.userId,body:c.body,at:c.createdAt,kind:'comment'});
+      });
+      (t.auditLog||[]).forEach(a=>{
+        if(!a||a.performedBy===user.id||a.action==='comment_added'||a.action==='daily_update')return;
+        const ts=a.performedAt?new Date(a.performedAt).getTime():0;if(ts<since)return;
+        feed.push({taskId:t.id,taskTitle:t.title,commentId:'a_'+(a.id||t.id+ts),from:a.performedBy,body:describe(a),at:a.performedAt,kind:'activity'});
+      });
+    });
+    feed.sort((a,b)=>new Date(a.at)-new Date(b.at));
+    myMentions.push(...feed.slice(-150));
+    myMentions.sort((a,b)=>new Date(a.at)-new Date(b.at));
+  }
 
   const dismissKey='ncsflow_dismissed_mentions_'+user.id;
   const getDismissed=()=>{try{return JSON.parse(localStorage.getItem(dismissKey)||'[]');}catch{return[];}};
@@ -1886,18 +2557,19 @@ const MentionsBell=({user,onOpenTask})=>{
   const authorName=(uid)=>{const u=users.find(x=>x.id===uid);return u?u.fullName.split(' ')[0]:'Someone';};
 
   const unread=visibleMentions.filter(m=>!seen.includes(m.commentId));
+  const [dropTop,setDropTop]=useState(64);
 
   return React.createElement('div',{style:{position:'relative'}},
     React.createElement('button',{
-      onClick:()=>setShowDrop(v=>!v),title:'Mentions',
+      onClick:e=>{const r=e.currentTarget.getBoundingClientRect();setDropTop(r.bottom+8);setShowDrop(v=>!v);},title:isAdminViewer?'Mentions & team activity':'Mentions',
       style:{position:'relative',width:34,height:34,borderRadius:8,border:'1px solid '+(unread.length>0?'#8b5cf6':'var(--bdr)'),background:unread.length>0?'#8b5cf618':'var(--bg)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,fontWeight:800,color:unread.length>0?'#8b5cf6':'var(--t3)',transition:'all .15s'}
     },
       '@',
       unread.length>0&&React.createElement('span',{style:{position:'absolute',top:-6,right:-6,background:'#8b5cf6',color:'#fff',borderRadius:'50%',width:18,height:18,fontSize:10,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',border:'2px solid var(--bg)'}},unread.length>9?'9+':unread.length)
     ),
-    showDrop&&React.createElement('div',{style:{position:'absolute',top:42,right:0,width:320,maxHeight:400,overflowY:'auto',background:'var(--surf)',border:'1.5px solid var(--bdr)',borderRadius:14,boxShadow:'0 8px 32px #00000020',zIndex:9999}},
+    showDrop&&React.createElement('div',{className:'ff-mdrop',style:{position:'fixed',top:dropTop,right:12,width:'min(360px, calc(100vw - 24px))',maxHeight:'min(480px, 70vh)',overflowY:'auto',background:'var(--surf)',border:'1.5px solid var(--bdr)',borderRadius:14,boxShadow:'0 8px 32px #00000020',zIndex:9999}},
       React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 14px',borderBottom:'1px solid var(--bdr)'}},
-        React.createElement('span',{style:{fontSize:13,fontWeight:800}},'💬 Mentions'),
+        React.createElement('span',{style:{fontSize:13,fontWeight:800}},isAdminViewer?'💬 Mentions & Activity':'💬 Mentions'),
         React.createElement('div',{style:{display:'flex',gap:8,alignItems:'center'}},
           unread.length>0&&React.createElement('button',{onClick:markAllSeen,style:{fontSize:11,color:'#8b5cf6',background:'none',border:'none',cursor:'pointer',fontWeight:700,fontFamily:'var(--fb)'}},'Mark all read'),
           React.createElement('button',{onClick:()=>setShowDrop(false),style:{fontSize:18,background:'none',border:'none',cursor:'pointer',color:'var(--t3)',lineHeight:1}},'×')
@@ -1923,7 +2595,7 @@ const MentionsBell=({user,onOpenTask})=>{
                 // Main content — clickable
                 React.createElement('div',{onClick:handleClick,style:{flex:1,cursor:'pointer'}},
                   React.createElement('div',{style:{display:'flex',alignItems:'center',gap:6,marginBottom:4,flexWrap:'wrap'}},
-                    React.createElement('span',{style:{fontSize:11.5,fontWeight:700,color:'#8b5cf6'}},'@'+user.fullName.split(' ')[0]),
+                    React.createElement('span',{style:{fontSize:11.5,fontWeight:700,color:m.kind==='activity'?'#d8b25a':m.kind==='comment'?'#5b97f7':'#8b5cf6'}},m.kind==='activity'?'⚡ Update':m.kind==='comment'?'💬 Comment':'@'+user.fullName.split(' ')[0]),
                     React.createElement('span',{style:{fontSize:11,color:'var(--t3)'}},'in'),
                     React.createElement('span',{style:{fontSize:11.5,fontWeight:700,color:'var(--t1)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:120}},m.taskTitle),
                     isUnread&&React.createElement('span',{style:{width:7,height:7,borderRadius:'50%',background:'#8b5cf6',flexShrink:0}})
@@ -2069,7 +2741,7 @@ const Dashboard=({user,setScreen,setSelTask,activeDept=''})=>{
   const rec=[...mine].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)).slice(0,6);
   const BARS=['#94a3b8','#3b82f6','#f59e0b','#10b981'];
   return React.createElement('div',{className:'sc fi'},
-    React.createElement('div',{className:'sh'},React.createElement('div',null,React.createElement('div',{style:{fontFamily:'var(--fd)',fontSize:32,fontWeight:900,color:'var(--t1)',lineHeight:1.4,letterSpacing:'-0.5px'}},'Good morning, ',user.fullName.split(' ')[0],' 👋'),React.createElement('div',{className:'ss',style:{marginTop:6}},new Date().toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'})))),
+    React.createElement('div',{className:'sh'},React.createElement('div',null,React.createElement('div',{className:'ff-hello',style:{fontFamily:'var(--fd)',fontSize:32,fontWeight:900,color:'var(--t1)',lineHeight:1.4,letterSpacing:'-0.5px'}},(()=>{const h=new Date().getHours();return h<12?'Good morning, ':h<17?'Good afternoon, ':'Good evening, ';})(),React.createElement('span',{className:'ff-name'},user.fullName.split(' ')[0]),' ',React.createElement('span',{className:'ff-wave'},'👋')),React.createElement('div',{className:'ss',style:{marginTop:6}},new Date().toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'})))),
     ov.length>0&&React.createElement('div',{className:'alr alov',style:{marginBottom:8}},I.alert,React.createElement('span',null,React.createElement('strong',null,ov.length,' overdue task',ov.length>1?'s':''),' — ',ov.slice(0,2).map(t=>t.title.split('—')[0].trim()).join(', '),ov.length>2?'…':'')),
     td.length>0&&React.createElement('div',{className:'alr altd',style:{marginBottom:8}},I.clock,React.createElement('span',null,React.createElement('strong',null,td.length,' task',td.length>1?'s':'',' due today'))),
     pendingDaily.length>0&&React.createElement('div',{className:'alr',style:{background:'#fffbeb',border:'1.5px solid #fde68a',color:'#d97706',marginBottom:16}},React.createElement('span',{style:{fontSize:16}},'⏱️'),React.createElement('span',null,React.createElement('strong',null,pendingDaily.length,' task',pendingDaily.length>1?'s':'',' need daily update'),' — click to open and post today\'s progress')),
@@ -2301,7 +2973,7 @@ const MeetingsScreen=({user,activeDept=''})=>{
         )
       ),
       // User filter (managers only)
-      isMgr&&React.createElement('select',{className:'fs',value:filterUser,onChange:e=>setFilterUser(e.target.value),style:{marginLeft:'auto'}},
+      isMgr&&React.createElement(FSel,{className:'fs',value:filterUser,onChange:e=>setFilterUser(e.target.value),style:{marginLeft:'auto'}},
         React.createElement('option',{value:''},'All Users'),
         users.filter(u=>u.isActive).map(u=>React.createElement('option',{key:u.id,value:u.id},u.fullName))
       )
@@ -2787,7 +3459,7 @@ const MeetingReviewScreen=({user,activeDept=''})=>{
         ),
         React.createElement('div',{className:'ss'},notRevCount+' pending · '+revCount+' reviewed')
       ),
-      React.createElement('select',{className:'fs',value:filterUser,onChange:e=>setFilterUser(e.target.value)},
+      React.createElement(FSel,{className:'fs',value:filterUser,onChange:e=>setFilterUser(e.target.value)},
         React.createElement('option',{value:''},'All Users'),
         users.filter(u=>u.isActive&&(!activeDept||!u.departments||u.departments.length===0||u.departments.includes(activeDept))).map(u=>React.createElement('option',{key:u.id,value:u.id},u.fullName))
       )
@@ -3965,7 +4637,9 @@ const SupervisorReviewScreen=({user,setSelTask,activeDept=''})=>{
 
 const Tasks=({user,selTask,setSelTask,initialProjFilter,clearProjFilter,activeDept=''})=>{
   const {tasks,setTasks,users,taskTypes,projects}=useCtx();
-  const [f,setF]=useState({proj:initialProjFilter||'',asgn:'',st:'',q:'',phase:'',type:'',dir:'',noComment:false,unassigned:false});
+  const defAsgn=(user.role==='team_member'||user.role==='support')?'':user.id; // default: my tasks
+  const [f,setF]=useState({proj:initialProjFilter||'',asgn:defAsgn,st:'',q:'',phase:'',type:'',dir:'',noComment:false,unassigned:false});
+  const [page,setPage]=useState(0);
   const [collapsed,setCollapsed]=useState({});
   // Sync initialProjFilter when it changes (from View Tasks button)
   React.useEffect(()=>{if(initialProjFilter){setF(prev=>({...prev,proj:initialProjFilter}));if(clearProjFilter)clearProjFilter();}}, [initialProjFilter]);
@@ -3983,6 +4657,7 @@ const Tasks=({user,selTask,setSelTask,initialProjFilter,clearProjFilter,activeDe
     if(f.proj&&t.projectId!==f.proj)return false;
     if(f.asgn&&t.assignedTo!==f.asgn)return false;
     if(f.st&&t.status!==f.st)return false;
+    if(f.type&&t.taskTypeId!==f.type)return false;
     if(f.q&&!t.title.toLowerCase().includes(f.q.toLowerCase()))return false;
     if(f.dept&&t.department!==f.dept)return false;
     if(f.dir&&(t.direction||'normal')!==f.dir)return false;
@@ -4015,6 +4690,13 @@ const Tasks=({user,selTask,setSelTask,initialProjFilter,clearProjFilter,activeDe
     const db=b.dueDate?new Date(b.dueDate):new Date('2099-01-01');
     return da-db;
   });
+
+  // Paging: render 100 tasks at a time so big data sets stay fast
+  const fKey=JSON.stringify(f)+'|'+activeDept;
+  useEffect(()=>{setPage(0);},[fKey]);
+  const pageCount=Math.max(1,Math.ceil(filtSorted.length/PAGE_SIZE));
+  const curPage=Math.min(page,pageCount-1);
+  const pageTasks=filtSorted.slice(curPage*PAGE_SIZE,(curPage+1)*PAGE_SIZE);
 
   // Export to Excel (CSV format that opens in Excel)
   const exportToExcel=()=>{
@@ -4060,6 +4742,12 @@ const Tasks=({user,selTask,setSelTask,initialProjFilter,clearProjFilter,activeDe
     setTasks(prev=>[t,...prev]);setShowNew(false);setForm({title:'',desc:'',typeId:'',projId:'',priority:'2',assignee:'',due:'',direction:'normal',dept:activeDept||''});
   };
   const openNew=()=>{setForm({title:'',desc:'',typeId:'',projId:'',priority:'2',assignee:'',due:'',direction:user.role==='support'?'email':'normal',dept:activeDept||''});setShowNew(true)};
+  const openNewRef=useRef(openNew);openNewRef.current=openNew;
+  useEffect(()=>{
+    if(window.__ffOpenNew){window.__ffOpenNew=false;openNewRef.current();}
+    const h=()=>openNewRef.current();
+    window.addEventListener('ff-newtask',h);return()=>window.removeEventListener('ff-newtask',h);
+  },[]);
 
   const newTaskForm=React.createElement('div',null,
     React.createElement('div',{className:'frw'},React.createElement(Fld,{lbl:'Task Title *',ch:React.createElement('input',{className:'ip',type:'text',placeholder:'e.g. Year-End Closing — FlyAkeed',value:form.title,onChange:e=>setForm({...form,title:e.target.value})})})),
@@ -4128,22 +4816,22 @@ const Tasks=({user,selTask,setSelTask,initialProjFilter,clearProjFilter,activeDe
       )
     ),
     React.createElement('div',{className:'fb',style:{flexWrap:'wrap',gap:8}},
-      React.createElement('div',{className:'isi',style:{flex:1,minWidth:180,maxWidth:240}},React.createElement('span',{className:'ico'},I.search),React.createElement('input',{className:'ip',placeholder:'Search tasks…',value:f.q,onChange:e=>setF({...f,q:e.target.value})})),
-      React.createElement('select',{className:'fs',value:f.proj,onChange:e=>setF({...f,proj:e.target.value})},React.createElement('option',{value:''},'All Projects'),getVisibleProjects(user,projects,activeDept).map(p=>React.createElement('option',{key:p.id,value:p.id},p.code))),
-      user.role!=='team_member'&&React.createElement('select',{className:'fs',value:f.asgn,onChange:e=>setF({...f,asgn:e.target.value})},React.createElement('option',{value:''},'All Members'),users.filter(u=>{
+      React.createElement('div',{className:'isi',style:{flex:1,minWidth:180,maxWidth:240}},React.createElement('span',{className:'ico'},I.search),React.createElement(FInp,{className:'ip',placeholder:'Search tasks…',value:f.q,onChange:e=>setF({...f,q:e.target.value})})),
+      React.createElement(FSel,{className:'fs',value:f.proj,onChange:e=>setF({...f,proj:e.target.value})},React.createElement('option',{value:''},'All Projects'),getVisibleProjects(user,projects,activeDept).map(p=>React.createElement('option',{key:p.id,value:p.id},p.code))),
+      user.role!=='team_member'&&React.createElement(FSel,{className:'fs',value:f.asgn,onChange:e=>setF({...f,asgn:e.target.value})},React.createElement('option',{value:''},'All Members'),users.filter(u=>{
               if(!u.isActive)return false;
               if(!activeDept)return true; // no dept filter
               if(u.role==='global_admin')return true; // global admin always visible
               if(!u.departments||u.departments.length===0)return true; // no dept restriction
               return u.departments.includes(activeDept);
             }).map(u=>React.createElement('option',{key:u.id,value:u.id},u.fullName))),
-      user.role==='support'&&React.createElement('select',{className:'fs',value:f.dept||'',onChange:e=>setF({...f,dept:e.target.value})},
+      user.role==='support'&&React.createElement(FSel,{className:'fs',value:f.dept||'',onChange:e=>setF({...f,dept:e.target.value})},
         React.createElement('option',{value:''},'All Departments'),
         DEPARTMENTS.map(d=>React.createElement('option',{key:d.id,value:d.id},d.icon+' '+d.name))
       ),
-      React.createElement('select',{className:'fs',value:f.st,onChange:e=>setF({...f,st:e.target.value})},React.createElement('option',{value:''},'All Statuses'),Object.entries(ST).map(([k,v])=>React.createElement('option',{key:k,value:k},v.l))),
-      React.createElement('select',{className:'fs',value:f.type||'',onChange:e=>setF({...f,type:e.target.value})},React.createElement('option',{value:''},'All Types'),taskTypes.filter(t=>t.isActive).map(t=>React.createElement('option',{key:t.id,value:t.id},t.name))),
-      React.createElement('select',{className:'fs',value:f.dir||'',onChange:e=>setF({...f,dir:e.target.value})},
+      React.createElement(FSel,{className:'fs',value:f.st,onChange:e=>setF({...f,st:e.target.value})},React.createElement('option',{value:''},'All Statuses'),Object.entries(ST).map(([k,v])=>React.createElement('option',{key:k,value:k},v.l))),
+      React.createElement(FSel,{className:'fs',value:f.type||'',onChange:e=>setF({...f,type:e.target.value})},React.createElement('option',{value:''},'All Types'),taskTypes.filter(t=>t.isActive).map(t=>React.createElement('option',{key:t.id,value:t.id},t.name))),
+      React.createElement(FSel,{className:'fs',value:f.dir||'',onChange:e=>setF({...f,dir:e.target.value})},
         React.createElement('option',{value:''},'All Directions'),
         Object.entries(DIRECTIONS).map(([k,d])=>React.createElement('option',{key:k,value:k},d.icon+' '+d.label))
       ),
@@ -4178,8 +4866,9 @@ const Tasks=({user,selTask,setSelTask,initialProjFilter,clearProjFilter,activeDe
       (f.proj||f.asgn||f.st||f.q||f.type||f.dir||f.noComment||f.unassigned)&&React.createElement(Btn,{v:'gh',sz:'sm',ch:'Clear',onClick:()=>setF({proj:'',asgn:'',st:'',q:'',phase:'',dept:'',type:'',dir:'',noComment:false,unassigned:false})})
     ),
     React.createElement('div',{style:{flex:1,overflowY:'auto',padding:'20px 24px'}},
+      React.createElement(Pager,{total:filtSorted.length,page:curPage,setPage}),
       Object.keys(ST).map(s=>{
-        const grp=filtSorted.filter(t=>t.status===s);if(!grp.length&&!f.st)return null;const s2=ST[s];
+        const grp=pageTasks.filter(t=>t.status===s);if(!grp.length&&!f.st)return null;const s2=ST[s];
         const isOpen=collapsed[s]!==true;
         return React.createElement('div',{key:s,className:'tgr'},
           React.createElement('div',{className:'tgh',style:{cursor:'pointer',userSelect:'none'},onClick:()=>setCollapsed(prev=>({...prev,[s]:isOpen}))},
@@ -4262,7 +4951,8 @@ const Tasks=({user,selTask,setSelTask,initialProjFilter,clearProjFilter,activeDe
             );
           })
         );
-      })
+      }),
+      React.createElement(Pager,{total:filtSorted.length,page:curPage,setPage})
     ),
     selTask&&React.createElement(TaskPanel,{task:selTask,onClose:()=>setSelTask(null),onUpdate:u=>{upd(u);setSelTask(u)},user}),
     React.createElement(Mod,{open:showNew,onClose:()=>setShowNew(false),title:'Create New Task',ch:newTaskForm,wide:true})
@@ -4502,7 +5192,7 @@ const Projects=({user,setScreen,onViewTasks,activeDept=''})=>{
           )
       ),
       React.createElement('div',{style:{display:'flex',alignItems:'center',gap:10}},
-        React.createElement('select',{className:'fs',value:statusFilter,onChange:e=>setStatusFilter(e.target.value),style:{fontSize:12.5}},
+        React.createElement(FSel,{className:'fs',value:statusFilter,onChange:e=>setStatusFilter(e.target.value),style:{fontSize:12.5}},
           React.createElement('option',{value:''},'All Statuses'),
           React.createElement('option',{value:'active'},'Active'),
           React.createElement('option',{value:'on_hold'},'On Hold'),
@@ -4794,12 +5484,12 @@ const Users=({curUser})=>{
       React.createElement(Btn,{v:'pr',sz:'md',ch:React.createElement(React.Fragment,null,I.plus,'\u00a0New User'),onClick:()=>setShowNew(true)})
     ),
     React.createElement('div',{className:'fb',style:{marginBottom:16,flexWrap:'wrap',gap:8}},
-      React.createElement('select',{className:'fs',value:filterStatus,onChange:e=>setFilterStatus(e.target.value),style:{fontFamily:'var(--fb)'}},
+      React.createElement(FSel,{className:'fs',value:filterStatus,onChange:e=>setFilterStatus(e.target.value),style:{fontFamily:'var(--fb)'}},
         React.createElement('option',{value:'active'},'✅ Active Only'),
         React.createElement('option',{value:'all'},'All Users'),
         React.createElement('option',{value:'inactive'},'❌ Inactive Only')
       ),
-      React.createElement('select',{className:'fs',value:filterRole,onChange:e=>setFilterRole(e.target.value),style:{fontFamily:'var(--fb)'}},
+      React.createElement(FSel,{className:'fs',value:filterRole,onChange:e=>setFilterRole(e.target.value),style:{fontFamily:'var(--fb)'}},
         React.createElement('option',{value:''},'All Roles'),
         React.createElement('option',{value:'global_admin'},'Global Admin'),
         React.createElement('option',{value:'admin'},'Admin'),
@@ -4807,7 +5497,7 @@ const Users=({curUser})=>{
         React.createElement('option',{value:'team_member'},'Team Member'),
         React.createElement('option',{value:'support'},'Support')
       ),
-      React.createElement('select',{className:'fs',value:filterDept,onChange:e=>setFilterDept(e.target.value),style:{fontFamily:'var(--fb)'}},
+      React.createElement(FSel,{className:'fs',value:filterDept,onChange:e=>setFilterDept(e.target.value),style:{fontFamily:'var(--fb)'}},
         React.createElement('option',{value:''},'All Departments'),
         DEPARTMENTS.map(d=>React.createElement('option',{key:d.id,value:d.id},d.icon+' '+d.name))
       ),
@@ -4967,7 +5657,13 @@ const CompletedScreen=({user,activeDept=''})=>{
     if(user.role==='co_admin')return t.assignedTo===user.id||true; // co_admin sees all in visible projects
     return true;
   });
-  const filt=mine.filter(t=>!q||t.title.toLowerCase().includes(q.toLowerCase()));
+  const filt=mine.filter(t=>!q||t.title.toLowerCase().includes(q.toLowerCase()))
+    .sort((a,b)=>new Date(b.completedAt||b.createdAt||0)-new Date(a.completedAt||a.createdAt||0));
+  const [page,setPage]=useState(0);
+  useEffect(()=>{setPage(0);},[q,activeDept]);
+  const pageCount=Math.max(1,Math.ceil(filt.length/PAGE_SIZE));
+  const curPage=Math.min(page,pageCount-1);
+  const pageItems=filt.slice(curPage*PAGE_SIZE,(curPage+1)*PAGE_SIZE);
   return React.createElement('div',{className:'sc fi'},
     React.createElement('div',{className:'sh'},
       React.createElement('div',null,
@@ -4978,14 +5674,15 @@ const CompletedScreen=({user,activeDept=''})=>{
     React.createElement('div',{className:'fb',style:{marginBottom:16}},
       React.createElement('div',{className:'isi',style:{flex:1,maxWidth:340}},
         React.createElement('span',{className:'ico'},I.search),
-        React.createElement('input',{className:'ip',placeholder:'Search completed tasks…',value:q,onChange:e=>setQ(e.target.value)})
+        React.createElement(FInp,{className:'ip',placeholder:'Search completed tasks…',value:q,onChange:e=>setQ(e.target.value)})
       )
     ),
     filt.length===0&&React.createElement('div',{style:{textAlign:'center',padding:'60px 20px',color:'var(--t3)'}},
       React.createElement('div',{style:{fontSize:40,marginBottom:12}},'🎉'),
       React.createElement('div',{style:{fontSize:13}},q?'No results found.':'No completed tasks yet.')
     ),
-    filt.map(t=>{
+    React.createElement(Pager,{total:filt.length,page:curPage,setPage}),
+    pageItems.map(t=>{
       const a=getUser(t.assignedTo,users);
       const tp=getType(t.taskTypeId,taskTypes);
       const p=getProject(t.projectId,projects);
@@ -5016,6 +5713,7 @@ const CompletedScreen=({user,activeDept=''})=>{
         )
       );
     }),
+    React.createElement(Pager,{total:filt.length,page:curPage,setPage}),
     localSel&&React.createElement(TaskPanel,{
       task:localSel,
       onClose:()=>setLocalSel(null),
@@ -5724,6 +6422,11 @@ const TicketsScreen=({user,setSelTask,filter='open'})=>{
     if(fDept&&t.department!==fDept)return false;
     return true;
   }).sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
+  const [page,setPage]=useState(0);
+  useEffect(()=>{setPage(0);},[fProj,fDept,filter]);
+  const pageCount=Math.max(1,Math.ceil(filtered.length/PAGE_SIZE));
+  const curPage=Math.min(page,pageCount-1);
+  const pageItems=filtered.slice(curPage*PAGE_SIZE,(curPage+1)*PAGE_SIZE);
 
   const ST_COL={to_do:'#64748b',in_progress:'#2563eb',under_review:'#d97706',completed:'#059669'};
   const ST_LBL={to_do:'Pending',in_progress:'In Progress',under_review:'Under Review',completed:'Closed'};
@@ -5752,11 +6455,11 @@ const TicketsScreen=({user,setSelTask,filter='open'})=>{
 
     // Filter bar
     React.createElement('div',{style:{display:'flex',gap:10,marginBottom:20,flexWrap:'wrap',alignItems:'center'}},
-      React.createElement('select',{className:'fs',value:fProj,onChange:e=>setFProj(e.target.value),style:{fontFamily:'var(--fb)'}},
+      React.createElement(FSel,{className:'fs',value:fProj,onChange:e=>setFProj(e.target.value),style:{fontFamily:'var(--fb)'}},
         React.createElement('option',{value:''},'All Projects'),
         projects.map(p=>React.createElement('option',{key:p.id,value:p.id},p.code+' — '+p.name))
       ),
-      React.createElement('select',{className:'fs',value:fDept,onChange:e=>setFDept(e.target.value),style:{fontFamily:'var(--fb)'}},
+      React.createElement(FSel,{className:'fs',value:fDept,onChange:e=>setFDept(e.target.value),style:{fontFamily:'var(--fb)'}},
         React.createElement('option',{value:''},'All Departments'),
         DEPARTMENTS.map(d=>React.createElement('option',{key:d.id,value:d.id},d.icon+' '+d.name))
       ),
@@ -5777,7 +6480,8 @@ const TicketsScreen=({user,setSelTask,filter='open'})=>{
           )
         )
       : React.createElement('div',{style:{display:'flex',flexDirection:'column',gap:10}},
-          filtered.map(t=>{
+          React.createElement(Pager,{total:filtered.length,page:curPage,setPage}),
+          pageItems.map(t=>{
             const p=projects.find(pr=>pr.id===t.projectId);
             const creator=users.find(u=>u.id===t.createdBy);
             const assignee=users.find(u=>u.id===t.assignedTo);
@@ -5860,7 +6564,8 @@ const TicketsScreen=({user,setSelTask,filter='open'})=>{
                     },'Change → '+(dept?dept.icon+' '+dept.name:'No dept'))
               )
             );
-          })
+          }),
+          React.createElement(Pager,{total:filtered.length,page:curPage,setPage})
         )
   );
 };
@@ -6076,17 +6781,20 @@ const App=()=>{
     config:()=>user.role==='global_admin'?React.createElement(Config,{user}):null,
     users:()=>user.role==='global_admin'?React.createElement(Users,{curUser:user}):null,
     pwresets:()=>user.role==='global_admin'?React.createElement(PwResetScreen,{users,setUsers}):null,
+    emailsetup:()=>user.role==='global_admin'?React.createElement(EmailSetupScreen,{user}):null,
   };
   const screens={};
   return React.createElement(Ctx.Provider,{value:ctx},
     React.createElement(React.Fragment,null,
     ovLCS&&React.createElement(LCSPanel,{project:ovLCS,onClose:()=>setOvLCS(null),isAdmin:user.role==='global_admin'||user.role==='admin',currentUser:user,activeDept:ovLCS._viewDept||activeDept,onUpdate:u=>{const{_viewDept,...clean}=u;setProjects(prev=>prev.map(p=>p.id===clean.id?clean:p));setOvLCS(null);}}),
     React.createElement('div',{className:'app'},
-      React.createElement(Sidebar,{screen,setScreen:s=>{setScreen(s);setSelTask(null)},user,onLogout:()=>{authSignOut();setUser(null);setScreen('dashboard');setActiveDept('');},open:sbOpen,setOpen:setSbOpen,activeDept,setActiveDept}),
+      React.createElement(TopNav,{screen,setScreen:s=>{setScreen(s);setSelTask(null)},user,onLogout:()=>{authSignOut();setUser(null);setScreen('dashboard');setActiveDept('');},activeDept,setActiveDept},
+        React.createElement(Topbar,{user,onMenu:()=>setSbOpen(v=>!v),activeDept,onGoToPwResets:()=>setScreen('pwresets'),onGoToTasks:()=>setScreen('tasks'),onOpenTask:(t)=>{setSelTask(t);setScreen('tasks');},onBack:screenHistory.length>0?goBack:null})
+      ),
       React.createElement('div',{className:'main'},
-        React.createElement(Topbar,{user,onMenu:()=>setSbOpen(v=>!v),activeDept,onGoToPwResets:()=>setScreen('pwresets'),onGoToTasks:()=>setScreen('tasks'),onOpenTask:(t)=>{setSelTask(t);setScreen('tasks');},onBack:screenHistory.length>0?goBack:null}),
         (screenMap[screen]||screenMap.dashboard)()
       ),
+      React.createElement(FFFab,{screen,setScreen,user}),
       // Global TaskPanel — works from any screen (SupervisorReview, Dashboard, etc.)
       screen!=='tasks'&&selTask&&React.createElement(TaskPanel,{
         task:selTask,
