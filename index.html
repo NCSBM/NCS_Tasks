@@ -14,6 +14,12 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <style>/* [W2 fast-start] sync pill + toast */
 .ff-sync{position:fixed;left:50%;bottom:calc(14px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:9998;background:rgba(6,11,23,.92);color:#f5c76b;border:1px solid #f5a62355;border-radius:999px;padding:6px 14px;font:600 12px/1.2 'DM Sans',sans-serif;box-shadow:0 6px 24px #0006;pointer-events:none;white-space:nowrap}
+.ff-pv-bar{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:9997;display:flex;align-items:center;gap:8px;max-width:calc(100vw - 24px);background:#4c1d95;color:#fff;border:1px solid #a78bfa;border-radius:999px;padding:6px 6px 6px 14px;font:600 12.5px/1.2 'DM Sans',sans-serif;box-shadow:0 8px 30px #0007}
+.ff-pv-bar .t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.ff-pv-bar button{flex-shrink:0;border:0;border-radius:999px;padding:6px 11px;font:700 12px/1 'DM Sans',sans-serif;cursor:pointer;background:#ede9fe;color:#4c1d95}
+.ff-pv-bar button.x{background:#fff;color:#b91c1c}
+.ff-pv .ffh{box-shadow:inset 0 -3px 0 #8b5cf6}
+@media(max-width:760px){.ff-pv-bar{bottom:calc(92px + env(safe-area-inset-bottom))}}
 .ff-toast{position:fixed;left:50%;bottom:calc(56px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:9999;background:#111827;color:#fff;border-radius:12px;padding:10px 16px;font:500 13px/1.4 'DM Sans',sans-serif;max-width:90vw;box-shadow:0 8px 30px #0007;transition:opacity .3s}
 </style>
 <title>FinanceFlow — NCS Finance Department</title>
@@ -791,7 +797,7 @@ const bioVerify=async()=>{
 const authReady=()=>new Promise(res=>{const un=auth.onAuthStateChanged(u=>{un();res(u);});});
 const authUpdatePw=(newPw)=>auth.currentUser?auth.currentUser.updatePassword(newPw):Promise.reject('Not logged in');
 const authReauth=(email,pw)=>auth.currentUser.reauthenticateWithCredential(firebase.auth.EmailAuthProvider.credential(email,pw));
-const authResetEmail=email=>auth.sendPasswordResetEmail(email,{url:location.origin+location.pathname});
+const authResetEmail=email=>ffPreviewBlock()?ffPreviewErr():auth.sendPasswordResetEmail(email,{url:location.origin+location.pathname});
 // A second Firebase app so an admin can create login accounts without being signed out.
 let _auth2=null;
 const auth2=()=>{if(!_auth2){const a=firebase.apps.find(x=>x.name==='ncs-admin2')||firebase.initializeApp(firebaseConfig,'ncs-admin2');_auth2=a.auth();}return _auth2;};
@@ -799,6 +805,7 @@ const strongPw=()=>Array.from(crypto.getRandomValues(new Uint8Array(18)),b=>'ABC
 // Create (or confirm) the Firebase Auth account for a user. Returns 'created' | 'exists'.
 const authPwWorks=async(email,pw)=>{const a=auth2();try{await a.signInWithEmailAndPassword(email,pw);await a.signOut();return true;}catch(e){return false;}};
 const ensureAuthAccount=async(email,pw)=>{
+  if(ffPreviewBlock())throw new Error('Preview is read-only (Show as).');
   const a=auth2();
   try{await a.createUserWithEmailAndPassword(email,pw&&pw.length>=6?pw:strongPw());await a.signOut();return 'created';}
   catch(e){if(e&&e.code==='auth/email-already-in-use')return 'exists';throw e;}
@@ -806,7 +813,11 @@ const ensureAuthAccount=async(email,pw)=>{
 
 // DB helpers
 const dbGet=path=>db.ref(path).once('value').then(s=>s.val());
-const dbSet=(path,val)=>db.ref(path).set(val);
+// [SHOWAS] While the owner previews the app as someone else, the app is read-only.
+const FF_PREVIEW={on:false};
+const ffPreviewBlock=()=>{if(!FF_PREVIEW.on)return false;try{ffToast('👁 Preview is read-only. Exit "Show as" to make changes.');}catch(e){}return true;};
+const ffPreviewErr=()=>Promise.reject(new Error('Preview is read-only (Show as). Nothing was saved.'));
+const dbSet=(path,val)=>ffPreviewBlock()?ffPreviewErr():db.ref(path).set(val);
 const dbOn=(path,cb,onErr)=>{const ref=db.ref(path);ref.on('value',s=>cb(s.val()),e=>{console.warn('DB read blocked:',path,e&&e.code);onErr&&onErr(e);});return()=>ref.off();};
 // Login lookup: username / full name → email. Public, but only by exact key (cannot be listed).
 const loginKey=s=>String(s||'').toLowerCase().trim().replace(/[.#$\[\]\/]/g,'_').slice(0,120);
@@ -840,6 +851,20 @@ const EMAIL_CFG_PATH='ncsflow/settings/email';
 // [W2 push] Push settings (public VAPID key only) live in ncsflow/settings/push. The same Apps Script
 // sends the push through Firebase Cloud Messaging; its service-account key stays in Script properties.
 const PUSH_CFG_PATH='ncsflow/settings/push';
+// [SEC2] Only this account can open Email Setup (also enforced by the database rules on settings/email).
+// Both must match: the Firebase login email (proven by its password) AND the user's full name.
+const EMAIL_OWNER='bmedhat@next-cs.net';
+const EMAIL_OWNER_NAME='bassem medhat';
+// "Show additional data" flag on a user (set only by the owner) = that Global Admin can see Email Setup.
+const canEmailSetup=u=>!!u&&u.role==='global_admin'&&u.showAdditional===true;
+const isEmailOwner=(u)=>{const e=(auth.currentUser&&auth.currentUser.email||'').toLowerCase().trim();
+  const n=String(u&&u.fullName||'').toLowerCase().replace(/\s+/g,' ').trim();
+  return !!e&&e===EMAIL_OWNER&&String(u&&u.email||'').toLowerCase().trim()===EMAIL_OWNER&&n===EMAIL_OWNER_NAME&&u.role==='global_admin';};
+// [SEC2] Calls to the Apps Script carry the signed-in user's Firebase ID token instead of a shared key.
+// The script checks the token with Firebase itself, so nobody can call it as someone else.
+const ffSignedBody=async(obj)=>{const u=auth.currentUser;const idToken=u?await u.getIdToken():'';
+  return JSON.stringify({...obj,idToken,email:u?(u.email||''):'',appUrl:location.origin+location.pathname,sentAt:new Date().toISOString()});};
+const ffPost=(url,obj)=>ffPreviewBlock()?ffPreviewErr():ffSignedBody(obj).then(body=>fetch(url,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body}));
 const sendEmailNotif=(payload)=>{
   Promise.all([dbGet(EMAIL_CFG_PATH),dbGet(PUSH_CFG_PATH).catch(()=>null)]).then(([cfg,pcfg])=>{
     if(!cfg||!cfg.scriptUrl)return;
@@ -848,10 +873,10 @@ const sendEmailNotif=(payload)=>{
     let mailOn=!!cfg.enabled&&payload.event!=='assign';
     if(payload.event==='status'&&cfg.onStatus===false)mailOn=false;
     if(payload.event==='comment'&&cfg.onComment===false&&!hasMention)mailOn=false; // mentions always email
+    if(payload.event==='comment'&&payload.sendEmail!==true)mailOn=false; // [SEC2] comments email only when "Send email" is ticked
     if(!mailOn&&!pushOn)return;
-    const body=JSON.stringify({...payload,key:cfg.key||'',appUrl:location.origin+location.pathname,sentAt:new Date().toISOString()});
     // text/plain + no-cors avoids a CORS preflight, which Apps Script web apps don't answer
-    fetch(cfg.scriptUrl,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body}).catch(()=>{});
+    ffPost(cfg.scriptUrl,payload).catch(()=>{});
   }).catch(()=>{});
 };
 // ── [W2 push] this device's push subscription (Firebase Cloud Messaging web push) ──
@@ -1320,10 +1345,13 @@ const MentionTextarea=({value,onChange,users,placeholder,onFocus})=>{
     if(atIdx>=0&&(atIdx===0||/\s/.test(beforeCursor[atIdx-1]))){
       const query=beforeCursor.slice(atIdx+1).toLowerCase();
       if(query.length>=0&&!query.includes(' ')){
-        const matches=users.filter(u=>u.isActive&&(
-          u.fullName.toLowerCase().includes(query)||
-          u.username.toLowerCase().includes(query)
-        )).slice(0,5);
+        // [SEC2] Everyone can mention anyone (managers listed first); before only the first 5 users showed,
+        // so people further down the list (e.g. the Global Admin) could not be picked unless pre-filled.
+        const rank=u=>u.role==='global_admin'?0:u.role==='admin'?1:u.role==='co_admin'?2:3;
+        const matches=users.filter(u=>u&&u.isActive&&(
+          String(u.fullName||'').toLowerCase().includes(query)||
+          String(u.username||'').toLowerCase().includes(query)
+        )).sort((x,y)=>rank(x)-rank(y)||String(x.fullName||'').localeCompare(String(y.fullName||''))).slice(0,12);
         setSuggestions(matches);
         setMentionStart(atIdx);
         return;
@@ -1524,6 +1552,7 @@ const TaskPanel=({task:init,onClose,onUpdate,user})=>{
   const [task,setTask]=useState(init);
   const [tab,setTab]=useState('details');
   const [cmt,setCmt]=useState('');
+  const [cmtMail,setCmtMail]=useState(false); // [SEC2] "Send email" on a comment, off by default
   const [showDaily,setShowDaily]=useState(false);
   const next=getNextStatuses(task.status,user.role,task.isTicket||false);
   const asgn=getUser(task.assignedTo,users);
@@ -1561,8 +1590,8 @@ const TaskPanel=({task:init,onClose,onUpdate,user})=>{
     const soundEnabled=localStorage.getItem('ncsflow_sound')!=='0';
     if(soundEnabled&&mentionedUsers.length>0)playSound('mention');
     else if(soundEnabled)playSound('notify');
-    sendEmailNotif({event:'comment',taskId:task.id,taskTitle:task.title||'',department:task.department||'',assignedTo:task.assignedTo||'',isTicket:!!task.isTicket,comment:cmt.slice(0,2000),mentions:mentionedUsers.map(u=>u.id),actorId:user.id});
-    setCmt('');
+    sendEmailNotif({event:'comment',taskId:task.id,taskTitle:task.title||'',department:task.department||'',assignedTo:task.assignedTo||'',isTicket:!!task.isTicket,comment:cmt.slice(0,2000),mentions:mentionedUsers.map(u=>u.id),actorId:user.id,sendEmail:cmtMail});
+    setCmt('');setCmtMail(false);
   };
 
   const submitDaily=(body,blocker)=>{
@@ -1850,7 +1879,11 @@ const TaskPanel=({task:init,onClose,onUpdate,user})=>{
                   }
                 }
               }),
-              React.createElement(Btn,{v:'pr',sz:'sm',ch:React.createElement(React.Fragment,null,I.comment,'\u00a0Comment'),onClick:addCmt,dis:!cmt.trim()})
+              React.createElement('div',{style:{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap',marginTop:6}},
+                React.createElement('label',{style:{display:'flex',alignItems:'center',gap:6,fontSize:12.5,fontWeight:600,color:'var(--t2)',cursor:'pointer'}},
+                  React.createElement('input',{type:'checkbox',checked:cmtMail,onChange:e=>setCmtMail(e.target.checked),style:{width:15,height:15,accentColor:'var(--or)'}}),
+                  '📧 Send email'),
+                React.createElement(Btn,{v:'pr',sz:'sm',ch:React.createElement(React.Fragment,null,I.comment,'\u00a0Comment'),onClick:addCmt,dis:!cmt.trim()}))
             )
           )
         ),
@@ -2034,17 +2067,23 @@ const ForceChangePassword=({user,onChanged,onLogout})=>{
 // EMAIL NOTIFICATIONS SETUP (Global Admin)
 // rules: {actorUserId:[recipientUserIds]}. No rule = no email for that user's actions
 // (people @mentioned in a comment always get an email).
+// [SEC2] A key/URL field shown as ●●●● until you press 👁
+const SecretInput=({value,onChange,placeholder})=>{
+  const [show,setShow]=useState(false);
+  return React.createElement('div',{style:{display:'flex',gap:8}},
+    React.createElement('input',{className:'ip',type:show?'text':'password',autoComplete:'off',spellCheck:false,placeholder,value:value||'',onChange:e=>onChange(e.target.value),style:{fontFamily:'var(--fm)',flex:1,minWidth:0}}),
+    React.createElement(Btn,{v:'se',ch:show?'🙈 Hide':'👁 Show',onClick:()=>setShow(v=>!v)}));
+};
 const EmailSetupScreen=({user})=>{
   const {users}=useCtx();
-  const DEF={enabled:false,scriptUrl:'',key:'',senderName:'FinanceFlow',onStatus:true,onComment:true,rules:{},digest:{enabled:false,daily:true,weekly:true,weekDay:0,hour:8,managers:[]}};
+  const DEF={enabled:false,scriptUrl:'',senderName:'FinanceFlow',onStatus:true,onComment:true,rules:{},digest:{enabled:false,daily:true,weekly:true,weekDay:0,hour:8,managers:[]}};
   const [cfg,setCfg]=useState(DEF);
   const [loaded,setLoaded]=useState(false);
   const [msg,setMsg]=useState('');
   const [q,setQ]=useState('');
   const [openRow,setOpenRow]=useState('');
-  useEffect(()=>{dbGet(EMAIL_CFG_PATH).then(v=>{setCfg({...DEF,...(v||{}),rules:(v&&v.rules)||{},digest:{...DEF.digest,...((v&&v.digest)||{})}});setLoaded(true);}).catch(()=>setLoaded(true));},[]);
+  useEffect(()=>{dbGet(EMAIL_CFG_PATH).then(v=>{const {key:_oldKey,...vv}=(v||{});setCfg({...DEF,...vv,rules:(v&&v.rules)||{},digest:{...DEF.digest,...((v&&v.digest)||{})}});setLoaded(true);}).catch(()=>setLoaded(true));},[]);
   const set=(k,v)=>setCfg(c=>({...c,[k]:v}));
-  const genKey=()=>{const a=new Uint8Array(18);crypto.getRandomValues(a);set('key',Array.from(a,b=>b.toString(16).padStart(2,'0')).join(''));};
   const validUrl=u=>/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test((u||'').trim());
   const active=(users||[]).filter(u=>u.isActive);
   const withEmail=active.filter(u=>u.email);
@@ -2054,17 +2093,17 @@ const EmailSetupScreen=({user})=>{
   const copyRule=actorId=>setCfg(c=>{const src=(c.rules||{})[actorId]||[];const r={...(c.rules||{})};active.forEach(u=>{if(u.id!==actorId)r[u.id]=src.filter(x=>x!==u.id);});return {...c,rules:r};});
   const save=()=>{
     if(cfg.enabled&&!validUrl(cfg.scriptUrl))return setMsg('⚠️ Script URL must look like https://script.google.com/macros/s/…/exec');
-    if(cfg.enabled&&!cfg.key)return setMsg('⚠️ Generate a security key first, then paste it in the script.');
     const rules={};Object.entries(cfg.rules||{}).forEach(([k,v])=>{if(Array.isArray(v)&&v.length)rules[k]=v;});
     const dg=cfg.digest||{};
     const digest={enabled:!!dg.enabled,daily:dg.daily!==false,weekly:dg.weekly!==false,weekDay:Number(dg.weekDay)||0,hour:Math.min(23,Math.max(0,Number(dg.hour)||0)),managers:(dg.managers||[]).filter(id=>active.some(u=>u.id===id)),appUrl:location.origin+location.pathname};
-    const clean={...cfg,rules,digest,scriptUrl:(cfg.scriptUrl||'').trim(),updatedBy:user.id,updatedAt:new Date().toISOString()};
+    const {key:_k,...base}=cfg; // [SEC2] the old shared key is no longer stored where employees can read it
+    const clean={...base,rules,digest,scriptUrl:(cfg.scriptUrl||'').trim(),updatedBy:user.id,updatedAt:new Date().toISOString()};
     dbSet(EMAIL_CFG_PATH,clean).then(()=>{setCfg(clean);setMsg('✅ Saved');setTimeout(()=>setMsg(''),2500);}).catch(e=>setMsg('❌ '+(e.message||e)));
   };
   const test=()=>{
     if(!validUrl(cfg.scriptUrl))return setMsg('⚠️ Enter a valid Script URL first');
-    fetch(cfg.scriptUrl.trim(),{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({event:'test',key:cfg.key||'',actorId:user.id,appUrl:location.origin+location.pathname,sentAt:new Date().toISOString()})})
-      .then(()=>setMsg('📨 Test sent (save first if you changed the key). Check '+(user.email||'your inbox')+' in a minute.'))
+    ffPost(cfg.scriptUrl.trim(),{event:'test',actorId:user.id})
+      .then(()=>setMsg('📨 Test sent. Check '+(user.email||'your inbox')+' in a minute.'))
       .catch(e=>setMsg('❌ '+(e.message||e)));
   };
   const dgc=cfg.digest||DEF.digest;
@@ -2074,7 +2113,7 @@ const EmailSetupScreen=({user})=>{
     React.createElement('div',null,React.createElement('div',{style:{fontSize:13.5,fontWeight:600,color:'var(--t1)'}},l),sub&&React.createElement('div',{style:{fontSize:12,color:'var(--t3)',marginTop:2}},sub)));
   const preview=kind=>{
     if(!validUrl(cfg.scriptUrl))return setMsg('⚠️ Enter a valid Script URL first');
-    fetch(cfg.scriptUrl.trim(),{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({event:'digest_preview',kind,key:cfg.key||'',actorId:user.id,appUrl:location.origin+location.pathname,sentAt:new Date().toISOString()})})
+    ffPost(cfg.scriptUrl.trim(),{event:'digest_preview',kind,actorId:user.id})
       .then(()=>setMsg('📨 '+kind+' preview sent to '+(user.email||'your inbox')+'. Update the Apps Script first if you have not.'))
       .catch(e=>setMsg('❌ '+(e.message||e)));
   };
@@ -2097,12 +2136,8 @@ const EmailSetupScreen=({user})=>{
     card('Connection',null,
       React.createElement(Tog,{k:'enabled',l:'Enable email notifications',sub:'Turn this off to stop all emails right away'}),
       React.createElement('div',{style:{height:10}}),
-      React.createElement(Fld,{lbl:'Apps Script Web App URL',ch:React.createElement('input',{className:'ip',placeholder:'https://script.google.com/macros/s/…/exec',value:cfg.scriptUrl,onChange:e=>set('scriptUrl',e.target.value)})}),
-      React.createElement(Fld,{lbl:'Security key (paste the same value as SHARED_KEY in the script)',ch:
-        React.createElement('div',{style:{display:'flex',gap:8,flexWrap:'wrap'}},
-          React.createElement('input',{className:'ip',readOnly:true,value:cfg.key,placeholder:'Click Generate',style:{fontFamily:'var(--fm)',flex:'1 1 220px'}}),
-          React.createElement(Btn,{v:'se',ch:'Generate',onClick:genKey}),
-          React.createElement(Btn,{v:'se',ch:'Copy',dis:!cfg.key,onClick:()=>{try{navigator.clipboard.writeText(cfg.key);setMsg('Copied');}catch{}}}))}),
+      React.createElement(Fld,{lbl:'Apps Script Web App URL',ch:React.createElement(SecretInput,{placeholder:'https://script.google.com/macros/s/…/exec',value:cfg.scriptUrl,onChange:v=>set('scriptUrl',v)})}),
+      React.createElement('div',{style:{fontSize:12,color:'var(--t3)',marginBottom:8}},'🔒 Each request is signed with the logged-in user\'s Firebase login, so no shared key is needed.'),
       React.createElement(Fld,{lbl:'Sender name (shown in the From field)',ch:React.createElement('input',{className:'ip',value:cfg.senderName,onChange:e=>set('senderName',e.target.value)})}),
       React.createElement('div',{style:{fontSize:12,color:'var(--t3)'}},'Emails are sent from the Gmail account that owns the Apps Script.')),
     card('When to send',null,
@@ -2161,7 +2196,7 @@ const PushSetupCard=({user})=>{
     dbGet(EMAIL_CFG_PATH).then(cfg=>{
       if(!cfg||!cfg.scriptUrl)return setMsg('⚠️ Save the Apps Script URL above first.');
       if(!pushGet())return setMsg('⚠️ First turn on notifications on this device (your name menu → 🔔).');
-      return fetch(cfg.scriptUrl,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({event:'push_test',key:cfg.key||'',actorId:user.id,appUrl:location.origin+location.pathname,sentAt:new Date().toISOString()})})
+      return ffPost(cfg.scriptUrl,{event:'push_test',actorId:user.id})
         .then(()=>setMsg('📲 Test push sent. It should arrive in a few seconds.'));
     }).catch(e=>setMsg('❌ '+(e.message||e)));
   };
@@ -2171,7 +2206,7 @@ const PushSetupCard=({user})=>{
     React.createElement('label',{style:{display:'flex',alignItems:'center',gap:10,padding:'8px 0',cursor:'pointer'}},
       React.createElement('input',{type:'checkbox',checked:pc.enabled,onChange:e=>setPc(p=>({...p,enabled:e.target.checked})),style:{width:16,height:16,accentColor:'var(--or)'}}),
       React.createElement('span',{style:{fontSize:13.5,fontWeight:600,color:'var(--t1)'}},'Enable push notifications')),
-    React.createElement(Fld,{lbl:'Web Push public key (VAPID "Key pair"; public, not a secret)',ch:React.createElement('input',{className:'ip',value:pc.vapidKey,placeholder:'B…',onChange:e=>setPc(p=>({...p,vapidKey:e.target.value})),style:{fontFamily:'var(--fm)'}})}),
+    React.createElement(Fld,{lbl:'Web Push public key (VAPID "Key pair"; public, not a secret)',ch:React.createElement(SecretInput,{value:pc.vapidKey,placeholder:'B…',onChange:v=>setPc(p=>({...p,vapidKey:v}))})}),
     React.createElement('div',{style:{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap'}},
       React.createElement(Btn,{v:'pr',ch:'💾 Save push settings',onClick:save}),
       React.createElement(Btn,{v:'se',ch:'📲 Send test push to me',onClick:test}),
@@ -2487,7 +2522,7 @@ const Sidebar=({screen,setScreen,user,onLogout,open,setOpen,activeDept,setActive
       {id:'config',l:'Settings',ic:'tag'},
       {id:'users',l:'Users',ic:'users'},
       {id:'pwresets',l:'Password Resets',ic:'lock'},
-      {id:'emailsetup',l:'Email Setup',ic:'tag'},
+      ...(canEmailSetup(user)?[{id:'emailsetup',l:'Email Setup',ic:'tag'}]:[]),
     ]:[]),
     {id:'meetingreview',l:'Meeting Review',ic:'calendar'},
   ]:[];
@@ -2637,7 +2672,8 @@ const Sidebar=({screen,setScreen,user,onLogout,open,setOpen,activeDept,setActive
 // Replaces the left sidebar with a glass header: brand · department pills · tools · user menu,
 // and a scrollable row of tabs underneath. Uses the same page lists & permissions as the sidebar.
 const FF_EMOJI={dashboard:'🏠',tasks:'📋',meetings:'📅',completed:'✅',projects:'📁',deptoverview:'📊',review:'👁️',projectcost:'⏱️',emphours:'👥',meetingreview:'🗓️',newproject:'➕',overview:'🧭',hoursmatrix:'🧮',allemphours:'👥',crossmeeting:'🤝',config:'⚙️',users:'👤',pwresets:'🔐',emailsetup:'📧',tickets_open:'🎫',tickets_done:'☑️',support:'🆘',mytickets:'🎟️',changepw:'🔑',recurring:'🔁',performance:'📈'};
-const TopNav=({screen,setScreen,user,onLogout,activeDept,setActiveDept,children})=>{
+const TopNav=({screen,setScreen,user,onLogout,activeDept,setActiveDept,children,showAs})=>{
+  const pv=!!(showAs&&showAs.on);
   const {tasks,projects}=useCtx();
   const [menu,setMenu]=useState(null); // {id, x, y}
   const isGlobal=user.role==='global_admin';
@@ -2656,7 +2692,7 @@ const TopNav=({screen,setScreen,user,onLogout,activeDept,setActiveDept,children}
   const ADMIN=isGlobal?[
     {id:'newproject',l:'New Project'},{id:'overview',l:'Project Overview'},{id:'hoursmatrix',l:'Hours Matrix'},
     {id:'allemphours',l:'All Employee Hours'},{id:'crossmeeting',l:'Cross-Dept Meeting'},{id:'config',l:'Settings'},
-    {id:'users',l:'Users'},{id:'pwresets',l:'Password Resets'},{id:'emailsetup',l:'Email Setup'},
+    {id:'users',l:'Users'},{id:'pwresets',l:'Password Resets'},...(canEmailSetup(user)?[{id:'emailsetup',l:'Email Setup'}]:[]),
   ]:[];
   const SUPPORT=isGlobal?[{id:'tickets_open',l:'Open Tickets'},{id:'tickets_done',l:'Closed Tickets'}]:[];
   const go=id=>{setScreen(id);setMenu(null);};
@@ -2715,9 +2751,12 @@ const TopNav=({screen,setScreen,user,onLogout,activeDept,setActiveDept,children}
     menu&&React.createElement(Portal,null,
       React.createElement('div',{className:'ffh-menu',style:{left:menu.x,top:menu.y},onClick:e=>e.stopPropagation()},
         menu.id==='user'?React.createElement(React.Fragment,null,
-          React.createElement('div',{className:'mh'},user.fullName),
-          React.createElement('button',{className:screen==='changepw'?'on':'',onClick:()=>go('changepw')},React.createElement('span',null,'🔑'),'Change my password'),
-          bioSupported()&&React.createElement('button',{onClick:async()=>{
+          React.createElement('div',{className:'mh'},pv?'👁 '+user.fullName+' (preview)':user.fullName),
+          // [SHOWAS] owner only
+          showAs&&showAs.can&&React.createElement('button',{onClick:()=>{setMenu(null);showAs.open();}},React.createElement('span',null,'👁'),pv?'Show as someone else…':'Show as…'),
+          pv&&React.createElement('button',{onClick:()=>{setMenu(null);showAs.exit();}},React.createElement('span',null,'↩'),'Exit preview (back to me)'),
+          !pv&&React.createElement('button',{className:screen==='changepw'?'on':'',onClick:()=>go('changepw')},React.createElement('span',null,'🔑'),'Change my password'),
+          !pv&&bioSupported()&&React.createElement('button',{onClick:async()=>{
             setMenu(null);
             const cur=bioGet();
             if(cur&&cur.uid===user.id){bioClear();alert('Face ID / fingerprint unlock turned off on this device.');return;}
@@ -2725,7 +2764,7 @@ const TopNav=({screen,setScreen,user,onLogout,activeDept,setActiveDept,children}
             catch(e){if(!(e&&e.name==='NotAllowedError'))alert(e.message||'Could not enable biometric unlock.');}
           }},React.createElement('span',null,'🔐'),(bioGet()&&bioGet().uid===user.id)?'Turn off Face ID / Fingerprint':'Enable Face ID / Fingerprint'),
           // [W2 push] phone notifications for this device
-          React.createElement('button',{onClick:async()=>{
+          !pv&&React.createElement('button',{onClick:async()=>{
             setMenu(null);
             const cur=pushGet();
             if(cur&&cur.uid===user.id){await pushDisable();alert('Notifications turned off on this device.');return;}
@@ -2733,7 +2772,7 @@ const TopNav=({screen,setScreen,user,onLogout,activeDept,setActiveDept,children}
             catch(e){alert(e.message||'Could not turn on notifications.');}
           }},React.createElement('span',null,'🔔'),(pushGet()&&pushGet().uid===user.id)?'Turn off notifications on this device':'Turn on notifications on this device'),
           // [W2 PWA] install as an app
-          !isStandalone()&&(window.__ffInstall||isIOS())&&React.createElement('button',{onClick:async()=>{
+          !pv&&!isStandalone()&&(window.__ffInstall||isIOS())&&React.createElement('button',{onClick:async()=>{
             setMenu(null);
             const ev=window.__ffInstall;
             if(ev){try{ev.prompt();await ev.userChoice;}catch(e){}window.__ffInstall=null;return;}
@@ -5798,7 +5837,7 @@ const Users=({curUser})=>{
   const [editPwChanged,setEditPwChanged]=useState(false);
   const [editShowCurPw,setEditShowCurPw]=useState(false);
   const [editShowNewPw,setEditShowNewPw]=useState(false);
-  const openEdit=u=>{setEditUser(u);setEditPwChanged(false);setEditForm({name:u.fullName,email:u.email,username:u.username,currentPw:'',newPw:'',depts:u.departments||[],photoURL:u.photoURL||''});};
+  const openEdit=u=>{setEditUser(u);setEditPwChanged(false);setEditForm({name:u.fullName,email:u.email,username:u.username,currentPw:'',newPw:'',depts:u.departments||[],photoURL:u.photoURL||'',showAdditional:u.showAdditional===true});};
   const saveEdit=async()=>{
     if(!editForm.name||!editForm.email||!editForm.username)return;
     // [W1] Email changed → make sure a Firebase login exists for the NEW address (so nobody else can register it) and email it a reset link
@@ -5808,13 +5847,14 @@ const Users=({curUser})=>{
       try{await ensureAuthAccount(newEm,null);await authResetEmail(newEm);alert('A password link was emailed to '+newEm+'. The user signs in with the new email after setting a password.');}
       catch(e){alert('Email not changed: could not create a login for '+newEm+' ('+(e&&e.message||e)+')');return;}
     }
-    setUsers(prev=>prev.map(u=>{if(u.id!==editUser.id)return u;return {...u,fullName:editForm.name,email:newEm,username:editForm.username,avatar:editForm.name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase(),departments:editForm.depts||[],photoURL:editForm.photoURL||u.photoURL||''};}));
+    setUsers(prev=>prev.map(u=>{if(u.id!==editUser.id)return u;return {...u,fullName:editForm.name,email:newEm,username:editForm.username,avatar:editForm.name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase(),departments:editForm.depts||[],photoURL:editForm.photoURL||u.photoURL||'',...(isEmailOwner(curUser)?{showAdditional:!!editForm.showAdditional}:{})};}));
     setEditUser(null);};
   const [pwMsg,setPwMsg]=useState('');
   const sendReset=async u=>{setPwMsg('Sending…');try{const em=(u.email||'').toLowerCase().trim();await ensureAuthAccount(em,null);await authResetEmail(em);setPwMsg('✅ Reset link emailed to '+u.email);}catch(e){setPwMsg('❌ '+(e&&e.message||e));}};
   const [createErr,setCreateErr]=useState('');const [creating,setCreating]=useState(false);
   const create=async()=>{
     if(!form.name||!form.email||!form.username||!form.pw)return;
+    if(form.role==='global_admin'&&!isEmailOwner(curUser)){alert('Only the account owner can create a Global Admin.');return;}
     if(form.pw.length<8){setCreateErr('Temp password must be at least 8 characters.');return;}
     const email=form.email.toLowerCase().trim();
     if(users.some(u=>(u.email||'').toLowerCase()===email)){setCreateErr('A user with this email already exists.');return;}
@@ -5891,7 +5931,7 @@ const Users=({curUser})=>{
       ),
       React.createElement(FSel,{className:'fs',value:filterRole,onChange:e=>setFilterRole(e.target.value),style:{fontFamily:'var(--fb)'}},
         React.createElement('option',{value:''},'All Roles'),
-        React.createElement('option',{value:'global_admin'},'Global Admin'),
+        React.createElement('option',{value:'global_admin',disabled:!isEmailOwner(curUser)},'Global Admin'+(isEmailOwner(curUser)?'':' (owner only)')),
         React.createElement('option',{value:'admin'},'Admin'),
         React.createElement('option',{value:'co_admin'},'Co-Admin'),
         React.createElement('option',{value:'team_member'},'Team Member'),
@@ -5909,7 +5949,7 @@ const Users=({curUser})=>{
         React.createElement('tbody',null,filteredUsers.map(u=>React.createElement('tr',{key:u.id},
           React.createElement('td',null,React.createElement('div',{style:{display:'flex',alignItems:'center',gap:11}},React.createElement(Av,{user:u,sz:'s'}),React.createElement('div',null,React.createElement('div',{style:{fontSize:13.5,fontWeight:700}},u.fullName),React.createElement('div',{style:{fontSize:11.5,color:'var(--t3)'}},u.email)))),
           React.createElement('td',null,React.createElement('span',{style:{fontFamily:'var(--fm)',fontSize:12.5,color:'var(--t2)'}},u.username)),
-          React.createElement('td',null,React.createElement('select',{value:u.role,onChange:e=>setUsers(prev=>prev.map(x=>x.id===u.id?{...x,role:e.target.value}:x)),disabled:u.id===curUser.id,className:'fs',style:{fontSize:12,fontFamily:'var(--fb)'}},React.createElement('option',{value:'global_admin'},'Global Admin'),React.createElement('option',{value:'admin'},'Admin'),React.createElement('option',{value:'co_admin'},'Co-Admin'),React.createElement('option',{value:'team_member'},'Team Member'),React.createElement('option',{value:'support'},'Support'))),
+          React.createElement('td',null,React.createElement('select',{value:u.role,onChange:e=>{if(e.target.value==='global_admin'&&!isEmailOwner(curUser))return;setUsers(prev=>prev.map(x=>x.id===u.id?{...x,role:e.target.value}:x));},disabled:u.id===curUser.id||(u.role==='global_admin'&&!isEmailOwner(curUser)),className:'fs',style:{fontSize:12,fontFamily:'var(--fb)'}},React.createElement('option',{value:'global_admin',disabled:!isEmailOwner(curUser)},'Global Admin'),React.createElement('option',{value:'admin'},'Admin'),React.createElement('option',{value:'co_admin'},'Co-Admin'),React.createElement('option',{value:'team_member'},'Team Member'),React.createElement('option',{value:'support'},'Support'))),
               React.createElement('td',null,
                 React.createElement('div',{style:{display:'flex',flexWrap:'wrap',gap:4}},
                   (u.departments||[]).length===0
@@ -5971,6 +6011,11 @@ const Users=({curUser})=>{
             React.createElement(Btn,{v:'se',sz:'sm',ch:'📧 Send password reset link',onClick:()=>sendReset(editUser)}),
             React.createElement('span',{style:{fontSize:12,color:'var(--t3)'}},pwMsg||'Passwords are private. The user sets a new one from the email link.'))})
         ),
+        // [SEC2] Only the owner sees and changes this switch
+        isEmailOwner(curUser)&&React.createElement('label',{className:'frw',style:{display:'flex',alignItems:'center',gap:10,marginBottom:14,cursor:'pointer'}},
+          React.createElement('input',{type:'checkbox',checked:!!editForm.showAdditional,onChange:e=>setEditForm({...editForm,showAdditional:e.target.checked}),style:{width:16,height:16,accentColor:'var(--or)'}}),
+          React.createElement('span',{style:{fontSize:13.5,fontWeight:700,color:'var(--t1)'}},'Show additional data'),
+          React.createElement('span',{style:{fontSize:12,color:'var(--t3)'}},'(Email Setup screen. Global Admins only)')),
         React.createElement('div',{className:'frw',style:{marginBottom:14}},
           React.createElement('div',{style:{fontSize:11.5,fontWeight:700,color:'var(--t3)',textTransform:'uppercase',letterSpacing:'.06em',marginBottom:8}},'Departments'),
           React.createElement('div',{style:{display:'flex',flexWrap:'wrap',gap:8}},
@@ -7311,6 +7356,50 @@ const PerformanceScreen=({user,setSelTask,activeDept=''})=>{
 };
 // ═══ END WORKER3 BLOCK ═══
 
+// ═══ [SHOWAS] "Show as" preview (owner only) ═══
+const SHOWAS_ORDER=['global_admin','admin','co_admin','team_member','support'];
+const ShowAsPicker=({users,me,current,onPick,onClose})=>{
+  const [q,setQ]=useState('');
+  useEffect(()=>{const k=e=>{if(e.key==='Escape')onClose();};window.addEventListener('keydown',k);return()=>window.removeEventListener('keydown',k);},[]);
+  const qq=q.toLowerCase().trim();
+  const deptNames=u=>(u.departments||[]).map(id=>(DEPARTMENTS.find(d=>d.id===id)||{}).name||id).join(', ')||'All departments';
+  const list=(users||[]).filter(u=>u&&u.id&&u.id!==me.id&&ROLE[u.role]&&(!qq||String(u.fullName||'').toLowerCase().includes(qq)||String(u.username||'').toLowerCase().includes(qq)||String(u.email||'').toLowerCase().includes(qq)));
+  const row=(key,av,title,sub,role,onClick,dim)=>React.createElement('button',{key,onClick,style:{display:'flex',alignItems:'center',gap:10,width:'100%',textAlign:'left',padding:'9px 10px',border:'1px solid '+(current===key?'#8b5cf6':'transparent'),borderRadius:10,background:current===key?'#8b5cf61a':'transparent',cursor:'pointer',color:'var(--t1)',fontFamily:'var(--fb)',opacity:dim?.55:1}},
+    av,
+    React.createElement('div',{style:{flex:1,minWidth:0}},
+      React.createElement('div',{style:{fontWeight:700,fontSize:13.5,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},title),
+      React.createElement('div',{style:{fontSize:11.5,color:'var(--t3)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},sub)),
+    React.createElement('span',{style:{fontSize:11,fontWeight:700,color:ROLE[role].tx,border:'1px solid '+ROLE[role].tx+'55',borderRadius:999,padding:'2px 8px',flexShrink:0}},ROLE[role].l));
+  const head=t=>React.createElement('div',{key:'h_'+t,style:{fontSize:11,fontWeight:800,letterSpacing:'.08em',textTransform:'uppercase',color:'var(--t3)',margin:'12px 4px 4px'}},t);
+  const body=[];
+  if(!qq){
+    body.push(head('By role (no personal data)'));
+    SHOWAS_ORDER.forEach(r=>body.push(row('__role_'+r,React.createElement('div',{style:{width:32,height:32,borderRadius:'50%',display:'grid',placeItems:'center',background:ROLE[r].tx+'22',fontSize:15,flexShrink:0}},'👤'),'Any '+ROLE[r].l,'What this role sees, all departments, no tasks of its own',r,()=>onPick('__role_'+r))));
+  }
+  SHOWAS_ORDER.forEach(r=>{
+    const g=list.filter(u=>u.role===r).sort((a,b)=>String(a.fullName||'').localeCompare(String(b.fullName||'')));
+    if(!g.length)return;
+    body.push(head(ROLE[r].l+' · '+g.length));
+    g.forEach(u=>body.push(row(u.id,React.createElement(Av,{user:u,sz:'s'}),u.fullName+(u.isActive?'':' (inactive)'),deptNames(u),r,()=>onPick(u.id),!u.isActive)));
+  });
+  return React.createElement(Portal,null,
+    React.createElement('div',{onClick:onClose,style:{position:'fixed',inset:0,zIndex:10000,background:'#0009',display:'flex',alignItems:'center',justifyContent:'center',padding:16}},
+      React.createElement('div',{onClick:e=>e.stopPropagation(),role:'dialog','aria-label':'Show as',style:{width:'100%',maxWidth:460,maxHeight:'86vh',display:'flex',flexDirection:'column',background:'var(--surf)',color:'var(--t1)',border:'1px solid var(--bdr)',borderRadius:18,boxShadow:'0 20px 60px #0008'}},
+        React.createElement('div',{style:{padding:'18px 18px 10px'}},
+          React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8}},
+            React.createElement('div',{style:{fontFamily:'var(--fd)',fontWeight:800,fontSize:18}},'👁 Show as'),
+            React.createElement('button',{onClick:onClose,'aria-label':'Close',style:{border:0,background:'none',fontSize:20,cursor:'pointer',color:'var(--t3)'}},'✕')),
+          React.createElement('div',{style:{fontSize:12.5,color:'var(--t2)',margin:'4px 0 12px',lineHeight:1.5}},'See the app exactly as this person or role sees it: same menus, screens and departments. Read-only: nothing is saved, no emails or notifications are sent, and their real permissions do not change.'),
+          React.createElement('input',{className:'ip',autoFocus:true,placeholder:'Search a user by name, username or email…',value:q,onChange:e=>setQ(e.target.value)})),
+        React.createElement('div',{style:{overflowY:'auto',padding:'0 12px 14px'}},
+          body.length?body:React.createElement('div',{style:{padding:20,textAlign:'center',color:'var(--t3)',fontSize:13}},'No user matches.')))));
+};
+const ShowAsBar=({viewUser,onSwitch,onExit})=>React.createElement('div',{className:'ff-pv-bar',role:'status'},
+  React.createElement('span',{className:'t'},'👁 Showing as ',React.createElement('b',null,viewUser.fullName),' · ',(ROLE[viewUser.role]||{}).l||viewUser.role,' · read-only'),
+  React.createElement('button',{onClick:onSwitch},'Switch'),
+  React.createElement('button',{className:'x',onClick:onExit},'Exit'));
+// ═══ END [SHOWAS] components ═══
+
 const App=()=>{
   // Restore user from sessionStorage (survives tab duplicate & refresh)
   const [user,setUserRaw]=useState(()=>{
@@ -7339,6 +7428,9 @@ const App=()=>{
   const [ovLCS,setOvLCS]=useState(null);
   const [activeDept,setActiveDept]=useState('');
   const [sbOpen,setSbOpen]=useState(false);
+  // [SHOWAS] owner-only preview: '' = off, a user id, or '__role_<role>'
+  const [previewId,setPreviewId]=useState('');
+  const [pickerOpen,setPickerOpen]=useState(false);
   // ── Firebase realtime sync ──────────────────────────────────────────────────
   const [tasks,setTasksRaw]=useState([]);
   const [projects,setProjectsRaw]=useState([]);
@@ -7365,7 +7457,7 @@ const App=()=>{
   const [cacheOn,setCacheOn]=useState(false);
   const cacheOnRef=useRef(false);
   const [liveTasks,setLiveTasks]=useState(false);
-  const guard=key=>{if(cacheOnRef.current&&!loadedRef.current[key]){ffToast('⏳ Still syncing with the server. Please try again in a moment.');return false;}return true;};
+  const guard=key=>{if(ffPreviewBlock())return false;if(cacheOnRef.current&&!loadedRef.current[key]){ffToast('⏳ Still syncing with the server. Please try again in a moment.');return false;}return true;};
   // [W2 push] a task newly assigned to someone else → push to that person (sent by the Apps Script)
   const notifyAssign=(prev,next)=>{
     if(!user||prev===next||!Array.isArray(prev)||!Array.isArray(next))return;
@@ -7516,7 +7608,7 @@ const App=()=>{
     const acc={};
     users.forEach(u=>{if(!u||!u.email)return;const k=emailKey(u.email);if(!k)return;
       const d={};(u.departments||[]).forEach(x=>{if(x)d[String(x).replace(/[.#$\[\]\/]/g,'_')]=true;});
-      acc[k]={role:u.role||'team_member',active:!!u.isActive,userId:String(u.id||''),depts:d};});
+      acc[k]={role:u.role||'team_member',active:!!u.isActive,userId:String(u.id||''),depts:d,...(u.showAdditional===true?{emailSetup:true}:{})};});
     const me=acc[emailKey(authUser.email)];
     if(!me||me.role!=='global_admin'||!me.active)return;
     const js=JSON.stringify(acc);if(js===lastAcc.current)return;lastAcc.current=js;
@@ -7542,7 +7634,53 @@ const App=()=>{
     }
   },[users]);
   // Recurring tasks: managers' browsers create this period's task (once, see useRecurringGenerator)
-  useRecurringGenerator(user,tasks,setTasks,dbReady,loadedRef);
+  useRecurringGenerator(previewId?null:user,tasks,setTasks,dbReady,loadedRef);
+
+  // [SEC2] Auto sign-out after 2 hours without use (also when the app is reopened later).
+  // With Face ID / fingerprint on, the session stays and the person unlocks again with it.
+  // Phone notifications stay on (only a manual Sign out turns them off).
+  const idleRef=useRef(null);
+  useEffect(()=>{
+    if(!user)return;
+    const KEY='ncsflow_last_active',LIMIT=2*60*60*1000;
+    const rd=()=>{try{return Number(localStorage.getItem(KEY))||0;}catch{return 0;}};
+    const mark=()=>{const n=Date.now();if(n-(idleRef.current||0)<30000)return;idleRef.current=n;try{localStorage.setItem(KEY,String(n));}catch{}};
+    const lock=()=>{
+      const b=bioGet();
+      if(!(b&&b.uid===user.id))authSignOut().catch(()=>{});
+      try{localStorage.removeItem(KEY);}catch{}
+      setUser(null);setScreen('dashboard');setActiveDept('');
+    };
+    const check=()=>{const last=rd();if(last&&Date.now()-last>LIMIT)lock();};
+    check(); // reopened after a long time
+    idleRef.current=0;mark();
+    const ev=['pointerdown','keydown','touchstart','wheel'];
+    ev.forEach(e=>window.addEventListener(e,mark,{passive:true}));
+    const onVis=()=>{if(document.visibilityState==='visible')check();};
+    document.addEventListener('visibilitychange',onVis);
+    const t=setInterval(check,60000);
+    return ()=>{ev.forEach(e=>window.removeEventListener(e,mark));document.removeEventListener('visibilitychange',onVis);clearInterval(t);};
+  },[user&&user.id]);
+
+  // [SHOWAS] Only the owner can preview. The real user keeps driving sign-in, idle lock, access sync and push;
+  // only the screens get the previewed user. Turned off on sign-out / user change.
+  useEffect(()=>{setPreviewId('');setPickerOpen(false);},[user&&user.id]);
+  const canPreview=!!(user&&authUser&&!user.mustChangePassword&&isEmailOwner(user));
+  let viewUser=user;
+  if(canPreview&&previewId){
+    if(previewId.indexOf('__role_')===0){const r=previewId.slice(7);if(ROLE[r])viewUser={id:'__preview_'+r,fullName:'Any '+ROLE[r].l,username:'preview',email:'',role:r,departments:[],isActive:true};}
+    else viewUser=users.find(u=>u&&u.id===previewId)||user;
+  }
+  const previewOn=viewUser!==user;
+  FF_PREVIEW.on=previewOn;
+  const startPreview=id=>{
+    setPickerOpen(false);
+    const t=id.indexOf('__role_')===0?{role:id.slice(7),departments:[]}:users.find(u=>u&&u.id===id);if(!t)return;
+    setPreviewId(id);setSelTask(null);setOvLCS(null);setScreenHistory([]);
+    setScreen(t.role==='support'?'support':'dashboard');
+    setActiveDept(t.role!=='global_admin'&&t.departments&&t.departments.length>0?t.departments[0]:'');
+  };
+  const exitPreview=()=>{setPreviewId('');setPickerOpen(false);setSelTask(null);setOvLCS(null);setScreenHistory([]);setScreen('dashboard');setActiveDept('');};
 
   // Show loading while Firebase connects
   // Never decide "no users" until Firebase has actually answered for ncsflow/users.
@@ -7619,6 +7757,8 @@ const App=()=>{
       )
     );
   }
+  const realUser=user;
+  const renderMain=(user)=>{
   const screenMap={
     dashboard:()=>React.createElement(Dashboard,{user,setScreen,setSelTask,activeDept}),
     tasks:()=>React.createElement(Tasks,{user,selTask,setSelTask,initialProjFilter:projFilter,clearProjFilter:()=>setProjFilter(''),activeDept}),
@@ -7638,11 +7778,11 @@ const App=()=>{
     hoursmatrix:()=>user.role==='global_admin'?React.createElement(HoursMatrixScreen,{user}):null,
     projectcost:()=>(user.role==='global_admin'||user.role==='admin')?React.createElement(ProjectCostScreen,{user,activeDept}):null,
     emphours:()=>(user.role==='global_admin'||user.role==='admin')?React.createElement(EmployeeHoursScreen,{user,activeDept}):null,
-    changepw:()=>React.createElement(ChangePasswordScreen,{user,setUser,setUsers}),
+    changepw:()=>FF_PREVIEW.on?null:React.createElement(ChangePasswordScreen,{user,setUser,setUsers}),
     config:()=>user.role==='global_admin'?React.createElement(Config,{user}):null,
     users:()=>user.role==='global_admin'?React.createElement(Users,{curUser:user}):null,
     pwresets:()=>user.role==='global_admin'?React.createElement(PwResetScreen,{users,setUsers}):null,
-    emailsetup:()=>user.role==='global_admin'?React.createElement(EmailSetupScreen,{user}):null,
+    emailsetup:()=>canEmailSetup(user)?React.createElement(EmailSetupScreen,{user}):null,
     recurring:()=>(user.role==='global_admin'||user.role==='admin')?React.createElement(RecurringTasksScreen,{user,activeDept}):null,
     performance:()=>(user.role==='global_admin'||user.role==='admin')?React.createElement(PerformanceScreen,{user,setSelTask,activeDept}):null,
   };
@@ -7650,8 +7790,8 @@ const App=()=>{
   return React.createElement(Ctx.Provider,{value:ctx},
     React.createElement(React.Fragment,null,
     ovLCS&&React.createElement(LCSPanel,{project:ovLCS,onClose:()=>setOvLCS(null),isAdmin:user.role==='global_admin'||user.role==='admin',currentUser:user,activeDept:ovLCS._viewDept||activeDept,onUpdate:u=>{const{_viewDept,...clean}=u;setProjects(prev=>prev.map(p=>p.id===clean.id?clean:p));setOvLCS(null);}}),
-    React.createElement('div',{className:'app'},
-      React.createElement(TopNav,{screen,setScreen:s=>{setScreen(s);setSelTask(null)},user,onLogout:()=>{const b=bioGet();if(!(b&&b.uid===user.id)){const pd=pushGet();(pd?pushDisable():Promise.resolve()).finally(()=>authSignOut());}setUser(null);setScreen('dashboard');setActiveDept('');},activeDept,setActiveDept},
+    React.createElement('div',{className:'app'+(previewOn?' ff-pv':'')},
+      React.createElement(TopNav,{screen,setScreen:s=>{setScreen(s);setSelTask(null)},user,showAs:{can:canPreview,on:previewOn,open:()=>setPickerOpen(true),exit:exitPreview},onLogout:()=>{const b=bioGet();if(!(b&&b.uid===realUser.id)){const pd=pushGet();(pd?pushDisable():Promise.resolve()).finally(()=>authSignOut());}setPreviewId('');setUser(null);setScreen('dashboard');setActiveDept('');},activeDept,setActiveDept},
         React.createElement(Topbar,{user,onMenu:()=>setSbOpen(v=>!v),activeDept,onGoToPwResets:()=>setScreen('pwresets'),onGoToTasks:()=>setScreen('tasks'),onOpenTask:(t)=>{setSelTask(t);setScreen('tasks');},onBack:screenHistory.length>0?goBack:null})
       ),
       React.createElement('div',{className:'main'},
@@ -7659,6 +7799,8 @@ const App=()=>{
       ),
       React.createElement(FFFab,{screen,setScreen,user}),
       cacheOn&&React.createElement('div',{className:'ff-sync',role:'status'},'⏳ Syncing… view only'),
+      previewOn&&React.createElement(ShowAsBar,{viewUser:user,onSwitch:()=>setPickerOpen(true),onExit:exitPreview}),
+      pickerOpen&&canPreview&&React.createElement(ShowAsPicker,{users,me:realUser,current:previewId,onPick:startPreview,onClose:()=>setPickerOpen(false)}),
       // Global TaskPanel — works from any screen (SupervisorReview, Dashboard, etc.)
       screen!=='tasks'&&selTask&&React.createElement(TaskPanel,{
         task:selTask,
@@ -7668,6 +7810,8 @@ const App=()=>{
       })
     )
   ));
+  };
+  return renderMain(viewUser);
 };
 // Error boundary
 class ErrorBoundary extends React.Component{
