@@ -7,7 +7,7 @@ const LIBS = VERSION + '-libs';
 const SHELL_FILES = ['./', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
 // Versioned CDN files only (the URL changes when the version changes, so cache-first is safe)
 const LIB_HOSTS = /^https:\/\/(cdnjs\.cloudflare\.com\/ajax\/libs\/|www\.gstatic\.com\/firebasejs\/\d|fonts\.gstatic\.com\/|fonts\.googleapis\.com\/css)/;
-
+ 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(SHELL).then(c => c.addAll(SHELL_FILES)).catch(() => {}).then(() => self.skipWaiting()));
 });
@@ -15,7 +15,7 @@ self.addEventListener('activate', e => {
   e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => !k.startsWith(VERSION)).map(k => caches.delete(k))))
     .then(() => self.clients.claim()));
 });
-
+ 
 self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET') return;
@@ -46,7 +46,7 @@ self.addEventListener('fetch', e => {
   }
   // Everything else (Firebase, Apps Script, …) goes straight to the network.
 });
-
+ 
 // ── Push notifications (sent by the Apps Script through Firebase Cloud Messaging) ──
 self.addEventListener('push', e => {
   let d = {};
@@ -61,11 +61,13 @@ self.addEventListener('push', e => {
   };
   e.waitUntil(self.registration.showNotification(title, opts));
 });
-
+ 
 self.addEventListener('notificationclick', e => {
   e.notification.close();
   const d = e.notification.data || {};
   const target = new URL(d.url || './', self.registration.scope).href;
+  // [CAL] a meeting reminder can carry the Teams/Zoom link: open it directly
+  if (!target.startsWith(self.registration.scope)) { e.waitUntil(self.clients.openWindow(target)); return; }
   e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
     for (const c of list) {
       if (c.url.startsWith(self.registration.scope) && 'focus' in c) {
@@ -76,3 +78,4 @@ self.addEventListener('notificationclick', e => {
     return self.clients.openWindow(target);
   }));
 });
+ 
