@@ -7548,6 +7548,8 @@ const CalendarScreen=({user,setSelTask,activeDept=''})=>{
 };
 // ═══ END [CAL] ═══
 
+// Loading screen: a different wisdom each time (Bassem 2026-11-07)
+const FF_WISDOM=["من جدّ وجد، ومن زرع حصد","الوقت كالسيف، إن لم تقطعه قطعك","لا تؤجل عمل اليوم إلى الغد","قطرة فوق قطرة تصنع بحراً","العلم في الصغر كالنقش على الحجر","اطلبوا العلم من المهد إلى اللحد","الصبر مفتاح الفرج","من سار على الدرب وصل","يد واحدة لا تصفق","خير الكلام ما قلّ ودلّ","النجاح رحلة وليس محطة","التنظيم نصف الإنجاز","ابدأ صغيراً، وفكّر كبيراً","الجودة ليست صدفة، بل نتيجة جهد","كل إنجاز عظيم بدأ بخطوة صغيرة","الإتقان سر التميّز","اعمل بصمت، ودع نجاحك يتكلم","العقل السليم في الجسم السليم","الأفعال أعلى صوتاً من الأقوال","التعلّم لا يتوقف أبداً","الفرص لا تأتي، بل تُصنع","ما فات مات، وما هو آتٍ آت","إذا هبّت رياحك فاغتنمها","من راقب الناس مات همّاً","اسأل مجرّب ولا تسأل حكيم","على قدر أهل العزم تأتي العزائم","التكرار يعلّم الشطّار","خطوة بخطوة يُقطع الطريق الطويل","فريق واحد، هدف واحد","الدقة في الأرقام أمانة"];
 const App=()=>{
   // Restore user from sessionStorage (survives tab duplicate & refresh)
   const [user,setUserRaw]=useState(()=>{
@@ -7559,6 +7561,7 @@ const App=()=>{
     try{if(u){const {password:_p,...safe}=u;sessionStorage.setItem('ncsflow_user',JSON.stringify(safe));}else sessionStorage.removeItem('ncsflow_user');}catch{}
   };
   const [screen,setScreen]=useState('dashboard');
+  const [wisdom]=useState(()=>FF_WISDOM[Math.floor(Math.random()*FF_WISDOM.length)]);
   const [screenHistory,setScreenHistory]=useState([]);
 
   // Navigate with history tracking
@@ -7876,7 +7879,7 @@ const App=()=>{
       React.createElement('div',{style:{fontFamily:'var(--fd)',fontWeight:800,fontSize:18,color:'#f5a623'}},'NCS Management')
     ),
     React.createElement('div',{className:'sp',style:{width:28,height:28,borderWidth:3}}),
-    React.createElement('div',{style:{fontSize:13,color:'var(--t3)',fontWeight:500}},'Connecting to database...'),
+    React.createElement('div',{dir:'rtl',style:{fontSize:15,color:'var(--t3)',fontWeight:600,textAlign:'center',maxWidth:300,lineHeight:1.7,padding:'0 16px'}},wisdom),
     slowDb&&React.createElement('div',{style:{fontSize:12,color:'var(--t3)',textAlign:'center',maxWidth:260,lineHeight:1.6}},'Slow connection, still loading…',
       React.createElement('br'),
       React.createElement('button',{onClick:()=>location.reload(),style:{marginTop:10,background:'none',border:'1px solid #f5a62366',color:'#f5a623',borderRadius:10,padding:'6px 14px',cursor:'pointer',fontFamily:'var(--fb)'}},'Retry'))
