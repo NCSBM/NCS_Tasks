@@ -7551,12 +7551,12 @@ const CalendarScreen=({user,setSelTask,activeDept=''})=>{
 const App=()=>{
   // Restore user from sessionStorage (survives tab duplicate & refresh)
   const [user,setUserRaw]=useState(()=>{
-    // localStorage (2026-11-07): closing the phone app no longer forgets the sign-in. The 2-hour idle lock below still applies.
-    try{const s=localStorage.getItem('ncsflow_user')||sessionStorage.getItem('ncsflow_user');return s?JSON.parse(s):null;}catch{return null;}
+    // sessionStorage on purpose: closing the app fully asks for the password / fingerprint again (Bassem 2026-11-07)
+    try{localStorage.removeItem('ncsflow_user');const s=sessionStorage.getItem('ncsflow_user');return s?JSON.parse(s):null;}catch{return null;}
   });
   const setUser=u=>{
     setUserRaw(u);
-    try{sessionStorage.removeItem('ncsflow_user');if(u){const {password:_p,...safe}=u;localStorage.setItem('ncsflow_user',JSON.stringify(safe));}else localStorage.removeItem('ncsflow_user');}catch{}
+    try{if(u){const {password:_p,...safe}=u;sessionStorage.setItem('ncsflow_user',JSON.stringify(safe));}else sessionStorage.removeItem('ncsflow_user');}catch{}
   };
   const [screen,setScreen]=useState('dashboard');
   const [screenHistory,setScreenHistory]=useState([]);
