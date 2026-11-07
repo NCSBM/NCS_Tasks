@@ -2331,7 +2331,8 @@ const Login=({onLogin,allUsers})=>{
   const [forgotErr,setForgotErr]=useState('');
   const [forgotLd,setForgotLd]=useState(false);
   const [bio,setBio]=useState(()=>bioGet());
-  const bioLogin=async()=>{
+  const bioLogin=async(auto)=>{
+    if(auto!==true)auto=false; // onClick passes an event
     setErr('');setLd(true);
     try{
       const v=await bioVerify();
@@ -2339,12 +2340,21 @@ const Login=({onLogin,allUsers})=>{
       if(!fbUser||(fbUser.email||'').toLowerCase()!==v.email){
         setErr('Your session expired. Please sign in with your password once, then Face ID / fingerprint will work again.');setLd(false);return;}
       const list=(allUsers&&allUsers.length)?allUsers:USERS;
+      if(!list.length){setErr('Still loading, please try again in a moment.');setLd(false);return;} // don't forget the fingerprint just because users aren't loaded yet
       const found=list.find(u=>u.id===v.uid&&u.isActive);
       if(!found){bioClear();setBio(null);authSignOut();setErr('User not found or inactive.');setLd(false);return;}
       onLogin(found);
-    }catch(e){setErr(e&&e.name==='NotAllowedError'?'Cancelled.':(e.message||'Biometric sign-in failed.'));setLd(false);}
+    }catch(e){setErr(e&&e.name==='NotAllowedError'?(auto?'':'Cancelled.'):(e.message||'Biometric sign-in failed.'));setLd(false);}
   };
   const useOther=()=>{bioClear();setBio(null);authSignOut();};
+  // Ask for the fingerprint / Face ID at once when the app opens (Bassem 2026-11-07).
+  // Once per app open; if the phone refuses without a tap (e.g. iPhone), the button stays as before.
+  const bioAutoRef=useRef(false);
+  useEffect(()=>{
+    if(!bio||bioAutoRef.current||!(allUsers&&allUsers.length)||document.visibilityState!=='visible')return;
+    const t=setTimeout(()=>{if(bioAutoRef.current)return;bioAutoRef.current=true;bioLogin(true);},300);
+    return()=>clearTimeout(t);
+  },[bio,allUsers&&allUsers.length]);
 
   // Find the email for what the user typed (username, full name or email).
   const resolveEmail=async(raw)=>{
@@ -7584,6 +7594,8 @@ const App=()=>{
   const [usersDenied,setUsersDenied]=useState(false);
   const [authUser,setAuthUser]=useState(undefined); // undefined = still checking
   useEffect(()=>auth.onAuthStateChanged(u=>setAuthUser(u||null)),[]);
+  // If sign-in itself never answers (network / browser storage), still offer Retry after 8s (2026-11-07)
+  useEffect(()=>{const t=setTimeout(()=>setSlowDb(true),8000);return()=>clearTimeout(t);},[]);
   const authKey=authUser===undefined?'?':(authUser?authUser.uid||authUser.email:'-');
 
   // Save helpers → write to Firebase ONLY after initial load
