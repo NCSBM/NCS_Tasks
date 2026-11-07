@@ -1,13 +1,13 @@
-/* NCS Flow service worker: app-shell cache (fast start / offline shell) + push notifications.
+/* NCS Management service worker: app-shell cache (fast start / offline shell) + push notifications.
  * It never touches Firebase traffic (database, auth, messaging), Apps Script, or any non-GET request,
  * so data reads/writes always go live to Firebase. No keys or secrets live here. */
-const VERSION = 'ff-v1';
+const VERSION = 'ff-v2'; // v2: new name + icons (old cached icons are dropped on update)
 const SHELL = VERSION + '-shell';
 const LIBS = VERSION + '-libs';
 const SHELL_FILES = ['./', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
 // Versioned CDN files only (the URL changes when the version changes, so cache-first is safe)
 const LIB_HOSTS = /^https:\/\/(cdnjs\.cloudflare\.com\/ajax\/libs\/|www\.gstatic\.com\/firebasejs\/\d|fonts\.gstatic\.com\/|fonts\.googleapis\.com\/css)/;
- 
+
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(SHELL).then(c => c.addAll(SHELL_FILES)).catch(() => {}).then(() => self.skipWaiting()));
 });
@@ -15,7 +15,7 @@ self.addEventListener('activate', e => {
   e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => !k.startsWith(VERSION)).map(k => caches.delete(k))))
     .then(() => self.clients.claim()));
 });
- 
+
 self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET') return;
@@ -46,13 +46,13 @@ self.addEventListener('fetch', e => {
   }
   // Everything else (Firebase, Apps Script, …) goes straight to the network.
 });
- 
+
 // ── Push notifications (sent by the Apps Script through Firebase Cloud Messaging) ──
 self.addEventListener('push', e => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch (_) { d = { data: { body: e.data && e.data.text() } }; }
   const m = d.data || {}; const n = d.notification || {};
-  const title = String(m.title || n.title || 'NCS Flow').slice(0, 120);
+  const title = String(m.title || n.title || 'NCS Management').slice(0, 120);
   const opts = {
     body: String(m.body || n.body || '').slice(0, 240),
     icon: 'icons/icon-192.png', badge: 'icons/icon-192.png',
@@ -61,7 +61,7 @@ self.addEventListener('push', e => {
   };
   e.waitUntil(self.registration.showNotification(title, opts));
 });
- 
+
 self.addEventListener('notificationclick', e => {
   e.notification.close();
   const d = e.notification.data || {};
@@ -78,4 +78,3 @@ self.addEventListener('notificationclick', e => {
     return self.clients.openWindow(target);
   }));
 });
- 
