@@ -203,7 +203,7 @@ nav.snav{flex:1;padding:12px 10px;display:flex;flex-direction:column;gap:2px;ove
 .aui{display:flex;gap:12px;padding-bottom:14px;border-bottom:1px solid var(--bdr);margin-bottom:14px}
 .aui:last-child{border:none;margin:0;padding:0}
 /* PROJECTS */
-.pgr{display:grid;grid-template-columns:1fr;gap:20px;max-width:100%}
+.pgr{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:20px;max-width:100%} /* [FT] pagination used to share this class */
 .pc{background:var(--surf);border:1.5px solid var(--bdr);border-radius:18px;padding:22px 28px;transition:all .2s;box-shadow:0 1px 4px #0000000a}
 .pc:hover{border-color:var(--or);box-shadow:0 4px 16px #f5a62318;transform:translateY(-1px)}
 .pco{font-family:var(--fm);font-size:11px;color:var(--or);background:var(--or-dim);padding:3px 9px;border-radius:5px;display:inline-block;border:1px solid var(--or-bdr)}
@@ -541,7 +541,7 @@ body.dark .ffh-tools .tb>div:last-child>div[title]{background:rgba(245,158,11,.1
 .isi .fclr{width:100%}
 .isi .ico{z-index:2}
 /* ── pager (100 per page) ── */
-.pgr{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:4px 0 14px;padding:8px 12px;border:1px solid var(--bdr);border-radius:14px;background:linear-gradient(180deg,var(--card2),var(--card))}
+.pgn{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:4px 0 14px;padding:8px 12px;border:1px solid var(--bdr);border-radius:14px;background:linear-gradient(180deg,var(--card2),var(--card))}
 .pgr-info{font-size:12px;color:var(--t3)}.pgr-info b{color:var(--t1);font-family:'Inter',sans-serif}
 .pgr-btns{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
 .pgr-btns button{min-width:30px;height:30px;padding:0 10px;border-radius:9px;border:1px solid var(--bdr);background:var(--bg2);color:var(--t2);font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif}
@@ -638,7 +638,7 @@ body{font-size:13px}
   .tr{border-radius:14px}
   .tr .tmt{gap:5px}
   .tr .tmt>*{font-size:11px!important}
-  .pgr{flex-direction:column;align-items:stretch}
+  .pgn{flex-direction:column;align-items:stretch}
   .pgr-btns{justify-content:center}
   .ffh-row{gap:8px;padding:8px 12px}
   .ffh-brand span{display:none}
@@ -1013,7 +1013,9 @@ const Portal=({children})=>{
 };
 const useCtx=()=>useContext(Ctx);
 const T=()=>new Date().toISOString();
-const D=(n=0)=>{const d=new Date();d.setDate(d.getDate()+n);return d.toISOString().split('T')[0]};
+// [FT] local (Cairo) calendar day, not UTC: between 00:00 and 02:00 the UTC date is still yesterday
+const localDay=(d=new Date())=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const D=(n=0)=>{const d=new Date();d.setDate(d.getDate()+n);return localDay(d)};
 const uid=()=>Math.random().toString(36).slice(2);
 const fmtDate=d=>{if(!d)return'—';return new Date(d).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})};
 const fmtDT=d=>{if(!d)return'—';return new Date(d).toLocaleString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})};
@@ -1021,7 +1023,7 @@ const fmtSize=b=>{if(b<1024)return b+' B';if(b<1048576)return(b/1024).toFixed(1)
 const getUser=(id,u)=>u.find(x=>x.id===id);
 const getProject=(id,p)=>p.find(x=>x.id===id);
 const getType=(id,t)=>t.find(x=>x.id===id);
-const todayKey=()=>new Date().toISOString().split('T')[0];
+const todayKey=()=>localDay();
 
 const LCS_PHASES=[
   {id:1,name:'Meeting Agenda',icon:'📋'},{id:2,name:'Received Files',icon:'📁'},
@@ -1259,7 +1261,7 @@ const Pager=({total,page,setPage,size=PAGE_SIZE})=>{
   if(total<=size)return null;
   const from=page*size+1,to=Math.min(total,(page+1)*size);
   const nums=[];for(let i=0;i<pages;i++){if(i===0||i===pages-1||Math.abs(i-page)<=1)nums.push(i);else if(nums[nums.length-1]!=='…')nums.push('…');}
-  return React.createElement('div',{className:'pgr'},
+  return React.createElement('div',{className:'pgn'},
     React.createElement('span',{className:'pgr-info'},'Showing ',React.createElement('b',null,from,'–',to),' of ',React.createElement('b',null,total)),
     React.createElement('div',{className:'pgr-btns'},
       React.createElement('button',{disabled:page===0,onClick:()=>setPage(page-1),'aria-label':'Previous page'},'‹'),
@@ -1453,7 +1455,7 @@ const TaskTimeTab=({task,user,upd})=>{
     if(h===0&&m===0)return;
     const entry={
       id:uid(),
-      date:new Date().toISOString().split('T')[0],
+      date:localDay(),
       hours:h,
       minutes:m,
       note:note.trim(),
@@ -1563,6 +1565,8 @@ const TaskPanel=({task:init,onClose,onUpdate,user})=>{
   const {users,taskTypes,projects}=useCtx();
   const [task,setTask]=useState(init);
   const [tab,setTab]=useState('comments'); // opens on Comments by default (Bassem 2026-11-07)
+  // [FT] Esc closes the task panel (not while typing, so it never loses a half-written comment)
+  useEffect(()=>{const k=e=>{if(e.key!=='Escape')return;const t=document.activeElement&&document.activeElement.tagName;if(t==='TEXTAREA'||t==='INPUT'||t==='SELECT')return;if(document.querySelector('.mov'))return;onClose&&onClose();};window.addEventListener('keydown',k);return()=>window.removeEventListener('keydown',k);},[onClose]);
   const [cmt,setCmt]=useState('');
   const [cmtMail,setCmtMail]=useState(false); // [SEC2] "Send email" on a comment, off by default
   const [showDaily,setShowDaily]=useState(false);
@@ -3012,7 +3016,7 @@ const Topbar=({user,onMenu,activeDept='',onGoToPwResets,onGoToTasks,onOpenTask,o
     return true;
   });
   const als=mine.filter(t=>['ov','td'].includes(dStat(t.dueDate,t.status)));
-  const todayStr=new Date().toISOString().split('T')[0];
+  const todayStr=localDay();
   // Count MY tasks with no comment today — across ALL depts regardless of active view
   const myNoComment=tasks.filter(t=>{
     if(t.status==='completed')return false;
@@ -3101,6 +3105,9 @@ const Dashboard=({user,setScreen,setSelTask,activeDept=''})=>{
     return true;
   });
   const cnt={to_do:0,in_progress:0,under_review:0,completed:0};mine.forEach(t=>cnt[t.status]=(cnt[t.status]||0)+1);
+  // [FT] the Completed card was always 0 (completed tasks are filtered out above). Count this month's completed ones with the same visibility rules.
+  {const m0=new Date();m0.setDate(1);m0.setHours(0,0,0,0);
+   cnt.completed=(user.role==='team_member'||user.role==='support'?tasks.filter(t=>t.createdBy===user.id||t.assignedTo===user.id):tasks).filter(t=>t.status==='completed'&&_vpids.has(t.projectId)&&(user.role==='support'||!activeDept||t.department===activeDept)&&new Date(t.completedAt||t.updatedAt||0)>=m0).length;}
   const ov=mine.filter(t=>dStat(t.dueDate,t.status)==='ov');
   const td=mine.filter(t=>dStat(t.dueDate,t.status)==='td');
   const pendingDaily=mine.filter(t=>t.status==='in_progress'&&t.assignedTo===user.id&&!(t.dailyComments||{})[todayKey()]);
@@ -3111,7 +3118,7 @@ const Dashboard=({user,setScreen,setSelTask,activeDept=''})=>{
     ov.length>0&&React.createElement('div',{className:'alr alov',style:{marginBottom:8}},I.alert,React.createElement('span',null,React.createElement('strong',null,ov.length,' overdue task',ov.length>1?'s':''),' — ',ov.slice(0,2).map(t=>t.title.split('—')[0].trim()).join(', '),ov.length>2?'…':'')),
     td.length>0&&React.createElement('div',{className:'alr altd',style:{marginBottom:8}},I.clock,React.createElement('span',null,React.createElement('strong',null,td.length,' task',td.length>1?'s':'',' due today'))),
     pendingDaily.length>0&&React.createElement('div',{className:'alr',style:{background:'#fffbeb',border:'1.5px solid #fde68a',color:'#d97706',marginBottom:16}},React.createElement('span',{style:{fontSize:16}},'⏱️'),React.createElement('span',null,React.createElement('strong',null,pendingDaily.length,' task',pendingDaily.length>1?'s':'',' need daily update'),' — click to open and post today\'s progress')),
-    React.createElement('div',{className:'sgr'},Object.entries(ST).map(([s,m],i)=>React.createElement('div',{key:s,className:'scd'},React.createElement('div',{className:'sl'},m.l),React.createElement('div',{className:'sv'},cnt[s]||0),React.createElement('div',{style:{position:'absolute',bottom:0,left:0,right:0,height:3,background:BARS[i]}})))),
+    React.createElement('div',{className:'sgr'},Object.entries(ST).map(([s,m],i)=>React.createElement('div',{key:s,className:'scd',role:'button',tabIndex:0,style:{cursor:'pointer'},title:s==='completed'?'Open Completed':'Open Tasks',onClick:()=>setScreen(s==='completed'?'completed':'tasks')},React.createElement('div',{className:'sl'},s==='completed'?'Completed this month':m.l),React.createElement('div',{className:'sv'},cnt[s]||0),React.createElement('div',{style:{position:'absolute',bottom:0,left:0,right:0,height:3,background:BARS[i]}})))),
     React.createElement('div',{className:'d2c'},
       React.createElement('div',{className:'cd',style:{padding:24}},
         React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:18}},React.createElement('div',{style:{fontFamily:'var(--fd)',fontSize:15,fontWeight:800}},'Recent Tasks'),React.createElement(Btn,{v:'gh',sz:'sm',ch:'View all →',onClick:()=>setScreen('tasks')})),
@@ -3543,7 +3550,7 @@ const MeetingsScreen=({user,activeDept=''})=>{
 // NEW / EDIT MEETING MODAL
 const NewMeetingModal=({user,users,onClose,onSave,editMode=false,initialData=null,activeDept=''})=>{
   const {projects,taskTypes}=useCtx();
-  const today=new Date().toISOString().split('T')[0];
+  const today=localDay();
   const getDefaultTimes=()=>{
     const now=new Date();
     const nextHour=new Date(now);
@@ -3551,9 +3558,11 @@ const NewMeetingModal=({user,users,onClose,onSave,editMode=false,initialData=nul
     const endHour=new Date(nextHour);
     endHour.setHours(nextHour.getHours()+1);
     const fmt=(d)=>String(d.getHours()).padStart(2,'0')+':00';
-    return {startTime:fmt(nextHour),endTime:fmt(endHour)};
+    // [FT] late at night the next hour can be tomorrow: never default to an end time before the start
+    if(nextHour.getDate()!==now.getDate())return {startTime:'09:00',endTime:'10:00',date:localDay(nextHour)};
+    return {startTime:fmt(nextHour),endTime:endHour.getDate()!==nextHour.getDate()?'23:59':fmt(endHour)};
   };
-  const {startTime:defStart,endTime:defEnd}=getDefaultTimes();
+  const {startTime:defStart,endTime:defEnd,date:defDate}=getDefaultTimes();
   const [form,setForm]=useState(editMode&&initialData?{
     title:initialData.title||'',
     type:initialData.type||'onsite',
@@ -3567,7 +3576,7 @@ const NewMeetingModal=({user,users,onClose,onSave,editMode=false,initialData=nul
     departments:initialData.departments||(initialData.department?[initialData.department]:[]),
     link:initialData.link||'',sendInvite:false
   }:{
-    title:'',type:'onsite',date:today,
+    title:'',type:'onsite',date:defDate||today,
     startTime:defStart,
     endTime:defEnd,
     description:'',attendees:[user.id],
@@ -4995,7 +5004,7 @@ const SupervisorReviewScreen=({user,setSelTask,activeDept=''})=>{
           const daysLeft=due?Math.floor((due-today)/86400000):null;
           const isOverdue=daysLeft!==null&&daysLeft<0;
           const st=ST[t.status];
-          const todayStr=new Date().toISOString().split('T')[0];
+          const todayStr=localDay();
           const hasCommentToday=(t.comments||[]).some(c=>c.createdAt&&c.createdAt.startsWith(todayStr));
           const reviewer=t.supervisorReview?users.find(u=>u.id===t.supervisorReview.reviewedBy):null;
           return React.createElement('div',{key:t.id,className:'cd',style:{padding:'14px 18px',marginBottom:10,cursor:'pointer',borderColor:t.supervisorReview?'#10b981':'var(--bdr)',borderWidth:t.supervisorReview?2:1.5},onClick:()=>setSelTask(t)},
@@ -5058,7 +5067,7 @@ const Tasks=({user,selTask,setSelTask,initialProjFilter,clearProjFilter,activeDe
     if(f.dir&&(t.direction||'normal')!==f.dir)return false;
     if(f.unassigned&&t.assignedTo)return false;
     if(f.noComment){
-      const today=new Date().toISOString().split('T')[0];
+      const today=localDay();
       const hasCommentToday=(t.comments||[]).some(c=>c.createdAt&&c.createdAt.startsWith(today));
       if(hasCommentToday)return false;
     }
@@ -5103,7 +5112,7 @@ const Tasks=({user,selTask,setSelTask,initialProjFilter,clearProjFilter,activeDe
       const tp=taskTypes.find(x=>x.id===t.taskTypeId);
       const dept=DEPARTMENTS.find(d=>d.id===t.department);
       const lastCmt=(t.comments||[]).slice(-1)[0];
-      const today=new Date().toISOString().split('T')[0];
+      const today=localDay();
       const todayCmt=(t.comments||[]).filter(c=>c.createdAt&&c.createdAt.startsWith(today)).slice(-1)[0];
       return [
         '"'+(t.title||'').replace(/"/g,'""')+'"',
@@ -5124,7 +5133,7 @@ const Tasks=({user,selTask,setSelTask,initialProjFilter,clearProjFilter,activeDe
     const url=URL.createObjectURL(blob);
     const a=document.createElement('a');
     a.href=url;
-    a.download='NCS_Tasks_'+new Date().toISOString().split('T')[0]+'.csv';
+    a.download='NCS_Tasks_'+localDay()+'.csv';
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -5371,10 +5380,12 @@ const LCSPanel=({project,onClose,onUpdate,isAdmin,currentUser,activeDept=''})=>{
   useEffect(()=>{
     const prev=document.body.style.overflow;
     document.body.style.overflow='hidden';
-    return()=>{document.body.style.overflow=prev;};
+    const onKey=e=>{if(e.key==='Escape')onClose&&onClose();}; // [FT] Esc closes the phases panel
+    window.addEventListener('keydown',onKey);
+    return()=>{document.body.style.overflow=prev;window.removeEventListener('keydown',onKey);};
   },[]);
 
-  const todayISO=()=>new Date().toISOString().split('T')[0];
+  const todayISO=()=>localDay();
   const upPh=(pid,fld,val)=>{
     setPhases(prev=>{
       const updated=prev.map(p=>{
@@ -7792,6 +7803,7 @@ const App=()=>{
   // Recurring tasks: managers' browsers create this period's task (once, see useRecurringGenerator)
   useRecurringGenerator(previewId?null:user,tasks,setTasks,dbReady,loadedRef);
 
+  useEffect(()=>{setOvLCS(null);},[screen]); // [FT] moving to another screen closes the phases panel
   // [BACK] Phone / browser Back: close the open task, else go to the previous screen (2026-11-07).
   // On the first screen, Back leaves the app as usual.
   const navRef=useRef({stack:[],pop:false,ignore:0});
