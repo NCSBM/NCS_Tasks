@@ -856,7 +856,7 @@ const PUSH_CFG_PATH='ncsflow/settings/push';
 const EMAIL_OWNER='bmedhat@next-cs.net';
 const EMAIL_OWNER_NAME='bassem medhat';
 // "Show additional data" flag on a user (set only by the owner) = that Global Admin can see Email Setup.
-const canEmailSetup=u=>!!u&&u.role==='global_admin'&&u.showAdditional===true;
+const canEmailSetup=u=>!!u&&u.role==='global_admin'&&u.showAdditional===true&&isEmailOwner(u);
 const isEmailOwner=(u)=>{const e=(auth.currentUser&&auth.currentUser.email||'').toLowerCase().trim();
   const n=String(u&&u.fullName||'').toLowerCase().replace(/\s+/g,' ').trim();
   return !!e&&e===EMAIL_OWNER&&String(u&&u.email||'').toLowerCase().trim()===EMAIL_OWNER&&n===EMAIL_OWNER_NAME&&u.role==='global_admin';};
@@ -865,6 +865,16 @@ const isEmailOwner=(u)=>{const e=(auth.currentUser&&auth.currentUser.email||'').
 const ffSignedBody=async(obj)=>{const u=auth.currentUser;const idToken=u?await u.getIdToken():'';
   return JSON.stringify({...obj,idToken,email:u?(u.email||''):'',appUrl:location.origin+location.pathname,sentAt:new Date().toISOString()});};
 const ffPost=(url,obj)=>ffPreviewBlock()?ffPreviewErr():ffSignedBody(obj).then(body=>fetch(url,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body}));
+// [CAL] Meeting invite: the Apps Script re-reads the meeting from Firebase and emails each attendee
+// a calendar file (.ics, with the meeting link and a 15-minute reminder). Only IDs are sent from here.
+const sendMeetingInvite=(m,kind)=>{
+  if(!m||!m.id)return;
+  dbGet(EMAIL_CFG_PATH).then(cfg=>{
+    if(!cfg||!cfg.scriptUrl)return;
+    ffPost(cfg.scriptUrl,{event:'meeting_invite',meetingId:m.id,kind:kind==='cancel'?'cancel':'request',stamp:(kind==='cancel'?m.canceledAt:m.updatedAt)||''}).catch(()=>{});
+  }).catch(()=>{});
+};
+const safeLink=u=>{u=String(u||'').trim();return /^https:\/\/[^\s"'<>]+$/i.test(u)?u:'';};
 const sendEmailNotif=(payload)=>{
   Promise.all([dbGet(EMAIL_CFG_PATH),dbGet(PUSH_CFG_PATH).catch(()=>null)]).then(([cfg,pcfg])=>{
     if(!cfg||!cfg.scriptUrl)return;
@@ -2671,7 +2681,7 @@ const Sidebar=({screen,setScreen,user,onLogout,open,setOpen,activeDept,setActive
 // ─── TOP NAVIGATION SHELL (v2 design) ────────────────────────────────────────
 // Replaces the left sidebar with a glass header: brand · department pills · tools · user menu,
 // and a scrollable row of tabs underneath. Uses the same page lists & permissions as the sidebar.
-const FF_EMOJI={dashboard:'🏠',tasks:'📋',meetings:'📅',completed:'✅',projects:'📁',deptoverview:'📊',review:'👁️',projectcost:'⏱️',emphours:'👥',meetingreview:'🗓️',newproject:'➕',overview:'🧭',hoursmatrix:'🧮',allemphours:'👥',crossmeeting:'🤝',config:'⚙️',users:'👤',pwresets:'🔐',emailsetup:'📧',tickets_open:'🎫',tickets_done:'☑️',support:'🆘',mytickets:'🎟️',changepw:'🔑',recurring:'🔁',performance:'📈'};
+const FF_EMOJI={dashboard:'🏠',tasks:'📋',calendar:'🗓️',meetings:'📅',completed:'✅',projects:'📁',deptoverview:'📊',review:'👁️',projectcost:'⏱️',emphours:'👥',meetingreview:'🗓️',newproject:'➕',overview:'🧭',hoursmatrix:'🧮',allemphours:'👥',crossmeeting:'🤝',config:'⚙️',users:'👤',pwresets:'🔐',emailsetup:'📧',tickets_open:'🎫',tickets_done:'☑️',support:'🆘',mytickets:'🎟️',changepw:'🔑',recurring:'🔁',performance:'📈'};
 const TopNav=({screen,setScreen,user,onLogout,activeDept,setActiveDept,children,showAs})=>{
   const pv=!!(showAs&&showAs.on);
   const {tasks,projects}=useCtx();
@@ -2683,7 +2693,7 @@ const TopNav=({screen,setScreen,user,onLogout,activeDept,setActiveDept,children,
   const MAIN=isSupport?[
     {id:'support',l:'Submit Ticket'},{id:'mytickets',l:'My Tickets'},{id:'tasks',l:'Track My Tasks'},
   ]:[
-    {id:'dashboard',l:'Dashboard'},{id:'tasks',l:'Tasks'},{id:'meetings',l:'Meetings'},
+    {id:'dashboard',l:'Dashboard'},{id:'tasks',l:'Tasks'},{id:'calendar',l:'Calendar'},{id:'meetings',l:'Meetings'},
     {id:'completed',l:'Completed'},{id:'projects',l:'Projects'},{id:'deptoverview',l:'Project Status'},
   ];
   const MANAGE=isSupport?[]:[
@@ -2788,6 +2798,10 @@ const TopNav=({screen,setScreen,user,onLogout,activeDept,setActiveDept,children,
 // Floating actions: quick "new task" (gold +) and back-to-top
 const FFFab=({screen,setScreen,user})=>{
   if(user.role==='support')return null;
+  if(screen==='meetings'){
+    const newMeeting=()=>window.dispatchEvent(new Event('ff-newmeeting'));
+    return React.createElement('button',{className:'ff-fab',onClick:newMeeting,title:'New meeting','aria-label':'New meeting'},'+');
+  }
   const newTask=()=>{
     if(screen==='tasks'){window.dispatchEvent(new Event('ff-newtask'));}
     else{window.__ffOpenNew=true;setScreen('tasks');}
@@ -3222,6 +3236,11 @@ const MeetingsScreen=({user,activeDept=''})=>{
   },[]);
 
   const saveMeetings=(m)=>{dbSet('ncsflow/meetings',sanitize(m));setMeetingsRaw(m);};
+  // The floating gold "+" (New meeting) opens the form on this screen
+  useEffect(()=>{
+    const h=()=>setShowNew(true);
+    window.addEventListener('ff-newmeeting',h);return()=>window.removeEventListener('ff-newmeeting',h);
+  },[]);
 
   // My meetings or all if manager with filter — department scoped
   const isGlobalAdmin=user.role==='global_admin';
@@ -3277,6 +3296,8 @@ const MeetingsScreen=({user,activeDept=''})=>{
   const cancelMeeting=(id)=>{
     const updated=meetings.map(m=>m.id===id?{...m,status:'canceled',canceledBy:user.id,canceledAt:new Date().toISOString()}:m);
     saveMeetings(updated);
+    const cm=updated.find(m=>m.id===id); // [CAL] tell the attendees' calendars
+    if(cm&&cm.invitedAt&&!FF_PREVIEW.on)setTimeout(()=>sendMeetingInvite(cm,'cancel'),1200);
   };
   const restoreMeeting=(id)=>{
     const updated=meetings.map(m=>m.id===id?{...m,status:'active',canceledBy:null,canceledAt:null}:m);
@@ -3296,8 +3317,7 @@ const MeetingsScreen=({user,activeDept=''})=>{
           isGlobalAdmin&&!activeDept&&React.createElement('span',{style:{fontSize:12,fontWeight:700,padding:'3px 10px',borderRadius:20,background:'#8b5cf618',color:'#8b5cf6',border:'1.5px solid #8b5cf635'}},'🌐 All Departments')
         ),
         React.createElement('div',{className:'ss'},visibleMeetings.length+' meetings · '+pendingCount+' pending attendance')
-      ),
-      React.createElement(Btn,{v:'pr',sz:'md',ch:React.createElement(React.Fragment,null,I.plus,' New Meeting'),onClick:()=>setShowNew(true)})
+      )
     ),
 
     // Toolbar
@@ -3367,6 +3387,7 @@ const MeetingsScreen=({user,activeDept=''})=>{
               },
                 React.createElement('div',{style:{fontWeight:700,color:canceled?'#9ca3af':mt.color,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',textDecoration:canceled?'line-through':'none'}},mt.ic+' '+m.title),
                 React.createElement('div',{style:{color:'#666',marginTop:1}},m.startTime+' – '+m.endTime),
+                !canceled&&safeLink(m.link)&&React.createElement('a',{href:safeLink(m.link),target:'_blank',rel:'noopener noreferrer',style:{display:'inline-block',marginTop:3,fontWeight:700,color:mt.color}},'🔗 Join'),
                 canceled
                   ? React.createElement('div',{style:{color:'#ef4444',fontWeight:700,marginTop:2,fontSize:10}},'🚫 Canceled')
                   : React.createElement(React.Fragment,null,
@@ -3482,7 +3503,7 @@ const MeetingsScreen=({user,activeDept=''})=>{
     }}),
 
     // Attendance Modal
-    attendModal&&React.createElement('div',{className:'mo'},
+    attendModal&&React.createElement(Portal,null,React.createElement('div',{className:'mov',onClick:e=>{if(e.target===e.currentTarget){setAttendModal(null);setActualH('');setActualM('');}}},
       React.createElement('div',{className:'mod',style:{maxWidth:400,padding:'24px'}},
         React.createElement('div',{style:{fontFamily:'var(--fd)',fontSize:17,fontWeight:800,marginBottom:6}},'✅ Mark as Attended'),
         React.createElement('div',{style:{fontSize:13,color:'var(--t3)',marginBottom:16}},attendModal.title),
@@ -3503,7 +3524,7 @@ const MeetingsScreen=({user,activeDept=''})=>{
           React.createElement(Btn,{v:'gh',sz:'lg',ch:'Cancel',onClick:()=>{setAttendModal(null);setActualH('');setActualM('');}})
         )
       )
-    )
+    ))
   );
 };
 
@@ -3531,7 +3552,8 @@ const NewMeetingModal=({user,users,onClose,onSave,editMode=false,initialData=nul
     attendees:initialData.attendees||[user.id],
     projectId:initialData.projectId||'',
     taskTypeId:initialData.taskTypeId||'',
-    departments:initialData.departments||(initialData.department?[initialData.department]:[])
+    departments:initialData.departments||(initialData.department?[initialData.department]:[]),
+    link:initialData.link||'',sendInvite:false
   }:{
     title:'',type:'onsite',date:today,
     startTime:defStart,
@@ -3539,7 +3561,8 @@ const NewMeetingModal=({user,users,onClose,onSave,editMode=false,initialData=nul
     description:'',attendees:[user.id],
     projectId:'',
     taskTypeId:'',
-    departments:activeDept?[activeDept]:[]
+    departments:activeDept?[activeDept]:[],
+    link:'',sendInvite:true
   });
   const [err,setErr]=useState('');
 
@@ -3559,22 +3582,28 @@ const NewMeetingModal=({user,users,onClose,onSave,editMode=false,initialData=nul
     if(!form.date){setErr('Date is required');return;}
     if(form.startTime>=form.endTime){setErr('End time must be after start time');return;}
     if(form.attendees.length===0){setErr('Add at least one attendee');return;}
+    if(form.link.trim()&&!safeLink(form.link)){setErr('The meeting link must start with https://');return;}
     const depts=activeDept?[activeDept]:(form.departments||[]);
-    onSave(editMode&&initialData?{
-      ...initialData,...form,
+    const {sendInvite,...f}=form;f.link=safeLink(f.link);
+    const now=new Date().toISOString();
+    const m=editMode&&initialData?{
+      ...initialData,...f,
       department:depts[0]||'',
-      departments:depts
+      departments:depts,updatedAt:now,...(sendInvite?{invitedAt:now}:{})
     }:{
-      id:uid(),...form,
+      id:uid(),...f,
       department:depts[0]||'',
       departments:depts,
       createdBy:user.id,
-      createdAt:new Date().toISOString(),
+      createdAt:now,updatedAt:now,...(sendInvite?{invitedAt:now}:{}),
       attendance:{}
-    });
+    };
+    onSave(m);
+    if(sendInvite&&!FF_PREVIEW.on)setTimeout(()=>sendMeetingInvite(m,'request'),1200);
   };
 
-  return React.createElement('div',{className:'mo',style:{alignItems:'flex-start',padding:0}},
+  // Rendered in a portal so the full-screen form is not trapped under the header / screen animation
+  return React.createElement(Portal,null,React.createElement('div',{className:'mo',style:{alignItems:'flex-start',padding:0}},
     React.createElement('div',{style:{
       position:'fixed',inset:0,background:'var(--surf)',
       display:'flex',flexDirection:'column',zIndex:1000,
@@ -3672,6 +3701,13 @@ const NewMeetingModal=({user,users,onClose,onSave,editMode=false,initialData=nul
             React.createElement(Fld,{lbl:'End Time *',ch:React.createElement('input',{className:'ip',type:'time',value:form.endTime,onChange:e=>setForm({...form,endTime:e.target.value})})})
           ),
 
+          // [CAL] Meeting link + invite email
+          React.createElement('div',{className:'frw',style:{marginBottom:20}},
+            React.createElement(Fld,{lbl:'Meeting link (Teams / Zoom / Google Meet)',ch:React.createElement('input',{className:'ip',type:'url',placeholder:'https://teams.microsoft.com/l/meetup-join/…',value:form.link,onChange:e=>setForm({...form,link:e.target.value})})}),
+            React.createElement('label',{style:{display:'flex',alignItems:'center',gap:8,marginTop:10,fontSize:13,fontWeight:600,color:'var(--t2)',cursor:'pointer'}},
+              React.createElement('input',{type:'checkbox',checked:!!form.sendInvite,onChange:e=>setForm({...form,sendInvite:e.target.checked}),style:{width:16,height:16,accentColor:'var(--or)'}}),
+              editMode?'📧 Email the updated invite to the attendees':'📧 Email the invite to the attendees (adds it to their Outlook / Google calendar)')
+          ),
           // Description
           React.createElement('div',{className:'frw',style:{marginBottom:20}},
             React.createElement(Fld,{lbl:'Description / Agenda',ch:React.createElement('textarea',{className:'ip',rows:3,placeholder:'Meeting agenda or description...',value:form.description,onChange:e=>setForm({...form,description:e.target.value})})})
@@ -3714,7 +3750,7 @@ const NewMeetingModal=({user,users,onClose,onSave,editMode=false,initialData=nul
         React.createElement(Btn,{v:'gh',sz:'lg',ch:'Cancel',onClick:onClose}),
         React.createElement(Btn,{v:'pr',sz:'lg',ch:editMode?'💾 Save Changes':'📅 Create Meeting',onClick:submit})
       )
-    )
+    ))
   );
 };
 
@@ -6012,7 +6048,7 @@ const Users=({curUser})=>{
             React.createElement('span',{style:{fontSize:12,color:'var(--t3)'}},pwMsg||'Passwords are private. The user sets a new one from the email link.'))})
         ),
         // [SEC2] Only the owner sees and changes this switch
-        isEmailOwner(curUser)&&React.createElement('label',{className:'frw',style:{display:'flex',alignItems:'center',gap:10,marginBottom:14,cursor:'pointer'}},
+        isEmailOwner(curUser)&&String(editUser&&editUser.email||'').toLowerCase().trim()===EMAIL_OWNER&&React.createElement('label',{className:'frw',style:{display:'flex',alignItems:'center',gap:10,marginBottom:14,cursor:'pointer'}},
           React.createElement('input',{type:'checkbox',checked:!!editForm.showAdditional,onChange:e=>setEditForm({...editForm,showAdditional:e.target.checked}),style:{width:16,height:16,accentColor:'var(--or)'}}),
           React.createElement('span',{style:{fontSize:13.5,fontWeight:700,color:'var(--t1)'}},'Show additional data'),
           React.createElement('span',{style:{fontSize:12,color:'var(--t3)'}},'(Email Setup screen. Global Admins only)')),
@@ -7400,6 +7436,106 @@ const ShowAsBar=({viewUser,onSwitch,onExit})=>React.createElement('div',{classNa
   React.createElement('button',{className:'x',onClick:onExit},'Exit'));
 // ═══ END [SHOWAS] components ═══
 
+// ═══ [CAL] Calendar: tasks (by due date) + meetings in one view ═══
+const CalendarScreen=({user,setSelTask,activeDept=''})=>{
+  const {tasks,setTasks,users}=useCtx();
+  const [meetings,setMeetings]=useState([]);
+  useEffect(()=>dbOn('ncsflow/meetings',v=>setMeetings(toArrV(v))),[]);
+  const isMgr=isManagerRole(user.role);
+  const canMove=user.role==='global_admin'||user.role==='admin'; // same rule as the Due date field
+  const narrow=typeof window!=='undefined'&&window.innerWidth<760;
+  const [view,setView]=useState(narrow?'agenda':'month');
+  const [who,setWho]=useState(user.id); // managers: a person, or 'all'
+  const [off,setOff]=useState(0);
+  const [dragId,setDragId]=useState('');
+  const [overDay,setOverDay]=useState('');
+  const [showLate,setShowLate]=useState(false);
+  const today=ymd(new Date());
+  const inDept=(list,one)=>{if(!activeDept)return true;const d=list&&list.length?list:(one?[one]:[]);return !d.length||d.includes(activeDept);};
+  const mine=t=>who==='all'?true:t.assignedTo===who;
+  const openTasks=(tasks||[]).filter(t=>t&&t.dueDate&&t.status!=='completed'&&!t.isTicket&&mine(t)&&(!activeDept||t.department===activeDept));
+  const mtgs=meetings.filter(m=>m&&m.date&&m.status!=='canceled'&&inDept(m.departments,m.department)&&(who==='all'?true:(m.attendees||[]).includes(who)));
+  const byDay={};
+  const put=(d,k,x)=>{(byDay[d]=byDay[d]||{t:[],m:[]})[k].push(x);};
+  openTasks.forEach(t=>put(String(t.dueDate).slice(0,10),'t',t));
+  mtgs.forEach(m=>put(m.date,'m',m));
+  Object.values(byDay).forEach(v=>{v.m.sort((a,b)=>String(a.startTime).localeCompare(String(b.startTime)));v.t.sort((a,b)=>(a.priority||9)-(b.priority||9));});
+  const overdue=openTasks.filter(t=>String(t.dueDate).slice(0,10)<today);
+  const uName=id=>((users||[]).find(u=>u.id===id)||{}).fullName||'';
+  const moveTask=(id,day)=>{
+    if(!canMove||!id||!day)return;
+    setTasks(prev=>prev.map(t=>{
+      if(t.id!==id||t.dueDate===day)return t;
+      const log={id:uid(),performedBy:user.id,action:'status_changed',fieldChanged:'dueDate',oldValue:t.dueDate||'',newValue:day,performedAt:T()};
+      return {...t,dueDate:day,auditLog:[...(t.auditLog||[]),log]};
+    }));
+    ffToast('📅 Due date moved to '+fmtDate(day));
+  };
+  const chipT=t=>{
+    const late=String(t.dueDate).slice(0,10)<today;
+    const st=ST[t.status]||{};
+    return React.createElement('div',{key:'t'+t.id,draggable:canMove,title:t.title+(who==='all'?' · '+uName(t.assignedTo):''),
+      onDragStart:e=>{setDragId(t.id);try{e.dataTransfer.setData('text/plain',t.id);}catch(_){}},onDragEnd:()=>{setDragId('');setOverDay('');},
+      onClick:()=>setSelTask(t),
+      style:{display:'flex',alignItems:'center',gap:5,padding:'3px 6px',marginBottom:3,borderRadius:6,fontSize:11.5,fontWeight:600,cursor:canMove?'grab':'pointer',
+        background:late?'#ef444418':'var(--card2)',border:'1px solid '+(late?'#ef444455':'var(--bdr)'),color:'var(--t1)',opacity:dragId===t.id?.4:1}},
+      React.createElement('span',{style:{width:7,height:7,borderRadius:'50%',flexShrink:0,background:st.d||'#94a3b8'}}),
+      React.createElement('span',{style:{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},t.title));
+  };
+  const chipM=m=>{
+    const mt=MEETING_TYPES[m.type]||MEETING_TYPES.internal;const lk=safeLink(m.link);
+    return React.createElement('div',{key:'m'+m.id,title:m.title+' '+m.startTime+'–'+m.endTime,
+      style:{padding:'3px 6px',marginBottom:3,borderRadius:6,fontSize:11.5,fontWeight:700,background:mt.color+'1f',border:'1px solid '+mt.color+'55',color:mt.color,overflow:'hidden',whiteSpace:'nowrap',textOverflow:'ellipsis'}},
+      m.startTime+' ',mt.ic,' ',m.title,
+      lk&&React.createElement('a',{href:lk,target:'_blank',rel:'noopener noreferrer',onClick:e=>e.stopPropagation(),style:{marginLeft:6,color:mt.color}},'🔗'));
+  };
+  const dropProps=day=>canMove?{onDragOver:e=>{e.preventDefault();if(overDay!==day)setOverDay(day);},onDragLeave:()=>setOverDay(''),
+    onDrop:e=>{e.preventDefault();let id=dragId;try{id=e.dataTransfer.getData('text/plain')||id;}catch(_){}setOverDay('');setDragId('');moveTask(id,day);}}:{};
+  // Month grid (weeks start on Sunday, like the Meetings screen)
+  const base=new Date();base.setDate(1);base.setMonth(base.getMonth()+off);
+  const first=new Date(base);first.setDate(1-first.getDay());
+  const cells=Array.from({length:42},(_,i)=>{const d=new Date(first);d.setDate(first.getDate()+i);return d;});
+  const monthName=base.toLocaleDateString('en-GB',{month:'long',year:'numeric'});
+  const btn=(on,ch,onClick)=>React.createElement('button',{onClick,style:{padding:'6px 12px',border:'1.5px solid var(--bdr)',borderRadius:8,cursor:'pointer',fontFamily:'var(--fb)',fontSize:12.5,fontWeight:700,background:on?'var(--or)':'var(--surf)',color:on?'#fff':'var(--t2)'}},ch);
+  const month=React.createElement('div',{className:'cd',style:{overflow:'hidden'}},
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(7,1fr)',borderBottom:'1px solid var(--bdr)'}},
+      ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d=>React.createElement('div',{key:d,style:{padding:'8px 6px',fontSize:11,fontWeight:800,color:'var(--t3)',textTransform:'uppercase',letterSpacing:'.06em'}},d))),
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(7,minmax(0,1fr))'}},
+      cells.map(d=>{
+        const k=ymd(d);const v=byDay[k]||{t:[],m:[]};const inM=d.getMonth()===base.getMonth();const isT=k===today;
+        const items=[...v.m.map(chipM),...v.t.map(chipT)];
+        return React.createElement('div',{key:k,...dropProps(k),style:{minHeight:104,padding:'6px 5px',borderRight:'1px solid var(--bdr)',borderBottom:'1px solid var(--bdr)',
+            background:overDay===k?'#f5a62322':isT?'#f5a62310':'transparent',opacity:inM?1:.45,minWidth:0}},
+          React.createElement('div',{style:{fontSize:12,fontWeight:800,marginBottom:4,color:isT?'var(--or)':'var(--t2)'}},d.getDate()),
+          items.slice(0,5),
+          items.length>5&&React.createElement('div',{style:{fontSize:11,color:'var(--t3)',fontWeight:700}},'+'+(items.length-5)+' more'));
+      })));
+  // Agenda: overdue first, then the next 21 days that have something
+  const days=Array.from({length:21},(_,i)=>{const d=new Date();d.setDate(d.getDate()+i);return ymd(d);}).filter(k=>byDay[k]);
+  const dayHead=(k,label)=>React.createElement('div',{style:{fontSize:12,fontWeight:800,color:k===today?'var(--or)':'var(--t3)',textTransform:'uppercase',letterSpacing:'.06em',margin:'14px 2px 6px'}},label);
+  const agenda=React.createElement('div',null,
+    overdue.length>0&&React.createElement(React.Fragment,null,dayHead('', '⚠️ Overdue · '+overdue.length),React.createElement('div',{className:'cd',style:{padding:8}},(showLate?overdue:overdue.slice(0,5)).map(chipT),
+      overdue.length>5&&React.createElement('button',{onClick:()=>setShowLate(v=>!v),style:{border:0,background:'none',color:'var(--or)',fontWeight:700,cursor:'pointer',fontFamily:'var(--fb)',fontSize:12.5,padding:'4px 6px'}},showLate?'Show less':'Show all '+overdue.length))),
+    days.length===0&&!overdue.length&&React.createElement('div',{className:'cd',style:{padding:30,textAlign:'center',color:'var(--t3)'}},'Nothing scheduled in the next 3 weeks.'),
+    days.map(k=>{const v=byDay[k];const d=new Date(k+'T00:00:00');
+      return React.createElement('div',{key:k},dayHead(k,(k===today?'Today · ':'')+d.toLocaleDateString('en-GB',{weekday:'long',day:'2-digit',month:'short'})),
+        React.createElement('div',{className:'cd',style:{padding:8}},v.m.map(chipM),v.t.map(chipT)));}));
+  return React.createElement('div',{className:'sc fi'},
+    React.createElement('div',{className:'sh'},React.createElement('div',null,
+      React.createElement('div',{className:'st'},'🗓️ Calendar'),
+      React.createElement('div',{className:'ss'},openTasks.length+' open tasks with a due date · '+mtgs.length+' meetings'+(overdue.length?' · '+overdue.length+' overdue':'')+(canMove&&!narrow?' · drag a task to another day to change its due date':'')))),
+    React.createElement('div',{style:{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center',marginBottom:14}},
+      btn(view==='month','📅 Month',()=>setView('month')),btn(view==='agenda','📋 Agenda',()=>setView('agenda')),
+      view==='month'&&React.createElement(React.Fragment,null,btn(false,'‹',()=>setOff(o=>o-1)),btn(off===0,'Today',()=>setOff(0)),btn(false,'›',()=>setOff(o=>o+1)),
+        React.createElement('span',{style:{fontWeight:800,color:'var(--t1)',marginLeft:4}},monthName)),
+      isMgr&&React.createElement(FSel,{className:'fs',value:who,onChange:e=>setWho(e.target.value),style:{marginLeft:'auto'}},
+        React.createElement('option',{value:user.id},'My calendar'),
+        React.createElement('option',{value:'all'},'Everyone'),
+        (users||[]).filter(u=>u&&u.isActive&&u.id!==user.id&&u.role!=='support').map(u=>React.createElement('option',{key:u.id,value:u.id},u.fullName)))),
+    view==='month'?month:agenda);
+};
+// ═══ END [CAL] ═══
+
 const App=()=>{
   // Restore user from sessionStorage (survives tab duplicate & refresh)
   const [user,setUserRaw]=useState(()=>{
@@ -7608,7 +7744,7 @@ const App=()=>{
     const acc={};
     users.forEach(u=>{if(!u||!u.email)return;const k=emailKey(u.email);if(!k)return;
       const d={};(u.departments||[]).forEach(x=>{if(x)d[String(x).replace(/[.#$\[\]\/]/g,'_')]=true;});
-      acc[k]={role:u.role||'team_member',active:!!u.isActive,userId:String(u.id||''),depts:d,...(u.showAdditional===true?{emailSetup:true}:{})};});
+      acc[k]={role:u.role||'team_member',active:!!u.isActive,userId:String(u.id||''),depts:d,...(u.showAdditional===true&&String(u.email||'').toLowerCase().trim()===EMAIL_OWNER?{emailSetup:true}:{})};});
     const me=acc[emailKey(authUser.email)];
     if(!me||me.role!=='global_admin'||!me.active)return;
     const js=JSON.stringify(acc);if(js===lastAcc.current)return;lastAcc.current=js;
@@ -7763,6 +7899,7 @@ const App=()=>{
     dashboard:()=>React.createElement(Dashboard,{user,setScreen,setSelTask,activeDept}),
     tasks:()=>React.createElement(Tasks,{user,selTask,setSelTask,initialProjFilter:projFilter,clearProjFilter:()=>setProjFilter(''),activeDept}),
     meetings:()=>React.createElement(MeetingsScreen,{user,activeDept}),
+    calendar:()=>user.role==='support'?null:React.createElement(CalendarScreen,{user,setSelTask,activeDept}),
     projects:()=>React.createElement(Projects,{user,setScreen,onViewTasks:(projId)=>{setProjFilter(projId);setScreen('tasks');},activeDept}),
     completed:()=>React.createElement(CompletedScreen,{user,activeDept}),
     overview:()=>user.role==='global_admin'?React.createElement(OverviewScreen,{user,setScreen,onOpenLCS:p=>{setOvLCS(p);},activeDept}):React.createElement('div',null),
