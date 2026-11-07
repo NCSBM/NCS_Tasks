@@ -604,6 +604,8 @@ body{font-size:13px}
 .pan [style*="font-size: 18px"]{font-size:15px!important}
 .pan .av.avm{width:30px;height:30px;font-size:11px}
 @media(min-width:1600px){body{font-size:13.5px}.pan{width:600px}}
+/* [IOSFIX] iPhone Safari: 100vh reaches under the bottom toolbar, hiding the Comment button. Use the visible height. */
+.pan{height:100vh;height:100dvh;padding-bottom:env(safe-area-inset-bottom)}
 
 /* ═══ TABLET / MOBILE ═══ */
 @media(max-width:1100px){
