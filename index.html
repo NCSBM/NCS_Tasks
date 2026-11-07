@@ -1562,7 +1562,7 @@ const TaskTimeTab=({task,user,upd})=>{
 const TaskPanel=({task:init,onClose,onUpdate,user})=>{
   const {users,taskTypes,projects}=useCtx();
   const [task,setTask]=useState(init);
-  const [tab,setTab]=useState('details');
+  const [tab,setTab]=useState('comments'); // opens on Comments by default (Bassem 2026-11-07)
   const [cmt,setCmt]=useState('');
   const [cmtMail,setCmtMail]=useState(false); // [SEC2] "Send email" on a comment, off by default
   const [showDaily,setShowDaily]=useState(false);
