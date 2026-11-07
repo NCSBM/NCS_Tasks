@@ -7551,11 +7551,12 @@ const CalendarScreen=({user,setSelTask,activeDept=''})=>{
 const App=()=>{
   // Restore user from sessionStorage (survives tab duplicate & refresh)
   const [user,setUserRaw]=useState(()=>{
-    try{const s=sessionStorage.getItem('ncsflow_user');return s?JSON.parse(s):null;}catch{return null;}
+    // localStorage (2026-11-07): closing the phone app no longer forgets the sign-in. The 2-hour idle lock below still applies.
+    try{const s=localStorage.getItem('ncsflow_user')||sessionStorage.getItem('ncsflow_user');return s?JSON.parse(s):null;}catch{return null;}
   });
   const setUser=u=>{
     setUserRaw(u);
-    try{if(u)sessionStorage.setItem('ncsflow_user',JSON.stringify(u));else sessionStorage.removeItem('ncsflow_user');}catch{}
+    try{sessionStorage.removeItem('ncsflow_user');if(u){const {password:_p,...safe}=u;localStorage.setItem('ncsflow_user',JSON.stringify(safe));}else localStorage.removeItem('ncsflow_user');}catch{}
   };
   const [screen,setScreen]=useState('dashboard');
   const [screenHistory,setScreenHistory]=useState([]);
@@ -7787,6 +7788,34 @@ const App=()=>{
   },[users]);
   // Recurring tasks: managers' browsers create this period's task (once, see useRecurringGenerator)
   useRecurringGenerator(previewId?null:user,tasks,setTasks,dbReady,loadedRef);
+
+  // [BACK] Phone / browser Back: close the open task, else go to the previous screen (2026-11-07).
+  // On the first screen, Back leaves the app as usual.
+  const navRef=useRef({stack:[],pop:false,ignore:0});
+  const tasksRef=useRef(tasks);tasksRef.current=tasks;
+  useEffect(()=>{
+    if(!user)return;
+    const n=navRef.current;const key=screen+'|'+(selTask&&selTask.id||'');
+    const L=n.stack.length;
+    if(L&&n.stack[L-1]===key)return;
+    if(L>1&&n.stack[L-2]===key&&n.stack[L-1].split('|')[0]===screen){n.stack.pop();n.ignore++;try{history.back();}catch(e){n.ignore--;}return;} // closed with ✕ / went back in the app
+    n.stack.push(key);
+    try{if(n.stack.length===1)history.replaceState({ff:1},'');else history.pushState({ff:n.stack.length},'');}catch(e){}
+  },[user&&user.id,screen,selTask&&selTask.id]);
+  useEffect(()=>{
+    const onPop=()=>{
+      const n=navRef.current;
+      if(n.ignore>0){n.ignore--;return;}
+      if(n.stack.length<=1)return;
+      n.stack.pop();
+      const [s2,tid]=n.stack[n.stack.length-1].split('|');
+      setSelTask(tid?((tasksRef.current||[]).find(t=>t.id===tid)||null):null);
+      setScreen(s2);
+    };
+    window.addEventListener('popstate',onPop);
+    return()=>window.removeEventListener('popstate',onPop);
+  },[]);
+  useEffect(()=>{if(!user)navRef.current={stack:[],pop:false,ignore:0};},[user]);
 
   // [SEC2] Auto sign-out after 2 hours without use (also when the app is reopened later).
   // With Face ID / fingerprint on, the session stays and the person unlocks again with it.
