@@ -1,7 +1,7 @@
 /* NCS Management service worker: app-shell cache (fast start / offline shell) + push notifications.
  * It never touches Firebase traffic (database, auth, messaging), Apps Script, or any non-GET request,
  * so data reads/writes always go live to Firebase. No keys or secrets live here. */
-const VERSION = 'ff-v2'; // v2: new name + icons (old cached icons are dropped on update)
+const VERSION = 'ff-v3'; // v2: new name + icons (old cached icons are dropped on update)
 const SHELL = VERSION + '-shell';
 const LIBS = VERSION + '-libs';
 const SHELL_FILES = ['./', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
@@ -52,9 +52,10 @@ self.addEventListener('push', e => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch (_) { d = { data: { body: e.data && e.data.text() } }; }
   const m = d.data || {}; const n = d.notification || {};
-  const title = String(m.title || n.title || 'NCS Management').slice(0, 120);
+  // Private by default (screen sharing in meetings): never show task/meeting details on screen.
+  const title = 'NCS Management';
   const opts = {
-    body: String(m.body || n.body || '').slice(0, 240),
+    body: 'You have a new notification',
     icon: 'icons/icon-192.png', badge: 'icons/icon-192.png',
     tag: m.tag || undefined, renotify: !!m.tag,
     data: { url: m.url || './', taskId: m.taskId || '' }

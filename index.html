@@ -1756,7 +1756,7 @@ const TaskPanel=({task:init,onClose,onUpdate,user})=>{
                       }
                     },
                       React.createElement('option',{value:''},'Unassigned'),
-                      users.filter(u=>u.isActive&&u.role!=='support'&&(user.role==='global_admin'||!task.department||!u.departments||u.departments.length===0||u.departments.includes(task.department))).map(u=>React.createElement('option',{key:u.id,value:u.id},u.fullName))
+                      users.filter(u=>u.id===task.assignedTo||u.isActive&&u.role!=='support'&&(!task.department||!u.departments||u.departments.length===0||u.departments.includes(task.department))).map(u=>React.createElement('option',{key:u.id,value:u.id},u.fullName))
                     ),
                     asgn&&React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8,marginTop:8}},
                       React.createElement(Av,{user:asgn,sz:'s'}),
@@ -5156,7 +5156,7 @@ const Tasks=({user,selTask,setSelTask,initialProjFilter,clearProjFilter,activeDe
               className:'ip fs',
               style:{width:'100%',border:!form.dept?'2px solid #f59e0b':'',background:!form.dept?'#fffbeb':''},
               value:form.dept||'',
-              onChange:e=>setForm({...form,dept:e.target.value})
+              onChange:e=>{const d=e.target.value;const a=users.find(u=>u.id===form.assignee);const ok=!a||!d||!a.departments||!a.departments.length||a.departments.includes(d);setForm({...form,dept:d,assignee:ok?form.assignee:''});}
             },
               React.createElement('option',{value:''},'⚠️ Select department…'),
               DEPARTMENTS.map(d=>React.createElement('option',{key:d.id,value:d.id},d.icon+' '+d.name))
@@ -5170,10 +5170,10 @@ const Tasks=({user,selTask,setSelTask,initialProjFilter,clearProjFilter,activeDe
       user.role!=='team_member'
           ? React.createElement(Fld,{lbl:'Assign To',ch:React.createElement('select',{className:'ip fs',style:{width:'100%'},value:form.assignee,onChange:e=>setForm({...form,assignee:e.target.value})},React.createElement('option',{value:''},'Unassigned'),users.filter(u=>{
               if(!u.isActive)return false;
-              if(!activeDept)return true; // no dept filter
-              if(u.role==='global_admin')return true; // global admin always visible
-              if(!u.departments||u.departments.length===0)return true; // no dept restriction
-              return u.departments.includes(activeDept);
+              const fd=activeDept||form.dept; // header dept, or the one picked in this form
+              if(!fd)return true; // no dept chosen yet
+              if(!u.departments||u.departments.length===0)return true; // All depts
+              return u.departments.includes(fd); // only people in this dept (Bassem 2026-11-07)
             }).map(u=>React.createElement('option',{key:u.id,value:u.id},u.fullName)))})
           : React.createElement('div',{className:'dfl',style:{gridColumn:'1/-1'}},React.createElement('label',null,'ASSIGNED TO'),React.createElement('div',{style:{display:'flex',alignItems:'center',gap:9,marginTop:6}},React.createElement(Av,{user,sz:'s'}),React.createElement('span',{style:{fontSize:13.5,fontWeight:600,color:'var(--t1)'}},user.fullName),React.createElement('span',{style:{fontSize:11.5,color:'var(--t3)',marginLeft:4}},'(you)'))),
       React.createElement(Fld,{lbl:'Priority',ch:React.createElement('select',{className:'ip fs',style:{width:'100%'},value:form.priority,onChange:e=>setForm({...form,priority:e.target.value})},Object.entries(PRI).map(([k,v])=>React.createElement('option',{key:k,value:k},v.l)))}),
@@ -7630,7 +7630,9 @@ const App=()=>{
     const sendNotif=(title,body,taskId)=>{
       if(!('Notification' in window)||Notification.permission!=='granted')return;
       const pd=pushGet();if(pd&&user&&pd.uid===user.id)return;
-      const opts={body,icon:'icons/icon-192.png',tag:'ff-'+(taskId||title),data:{taskId:taskId||'',url:'./'}};
+      // Private by default (Bassem 2026-11-07: screen sharing in meetings): no task details on screen
+      title='NCS Management';body='You have a new notification';
+      const opts={body,icon:'icons/icon-192.png',tag:'ff-'+(taskId||'n'),data:{taskId:taskId||'',url:'./'}};
       if(navigator.serviceWorker&&navigator.serviceWorker.controller){navigator.serviceWorker.ready.then(r=>r.showNotification(title,opts)).catch(()=>{});return;}
       try{new Notification(title,opts);}catch(e){}
     };
