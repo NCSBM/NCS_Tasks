@@ -1014,6 +1014,11 @@ const Portal=({children})=>{
 const useCtx=()=>useContext(Ctx);
 const T=()=>new Date().toISOString();
 // [FT] local (Cairo) calendar day, not UTC: between 00:00 and 02:00 the UTC date is still yesterday
+// [HRS] who did the hours: the person who logged them (older entries without loggedBy count for the assignee)
+const logOwner=(e,t)=>e&&e.loggedBy?e.loggedBy:(t&&t.assignedTo);
+const workedOn=(t,uid)=>t.assignedTo===uid||(t.timeLog||[]).some(e=>e&&e.loggedBy===uid);
+// [LOGIC] a meeting with no attendance logged counts its planned time only after it has ended (not future meetings this week)
+const mtgEnded=m=>{try{const[y,mo,d]=String(m.date||'').split('-').map(Number);const[eh,em]=String(m.endTime||'23:59').split(':').map(Number);return new Date(y,mo-1,d,eh,em)<=new Date();}catch(e){return false;}};
 const localDay=(d=new Date())=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 const D=(n=0)=>{const d=new Date();d.setDate(d.getDate()+n);return localDay(d)};
 const uid=()=>Math.random().toString(36).slice(2);
@@ -1155,6 +1160,9 @@ const canSeeProject=(user,project,activeDept)=>{
   return true;
 };
 
+// [DEPT] "All" for someone with departments = all of THEIR departments (a task of another department inside a shared
+// project stays hidden). Their own tasks (assigned to / created by them) always show.
+const deptAll=(user,t)=>!t||!t.department||!user||!(user.departments&&user.departments.length)||user.departments.includes(t.department)||t.assignedTo===user.id||t.createdBy===user.id;
 // Filter projects user can see
 const getVisibleProjects=(user,projects,activeDept)=>
   projects.filter(p=>canSeeProject(user,p,activeDept))
@@ -1168,7 +1176,9 @@ const PRI={1:{l:'Low',d:'#94a3b8'},2:{l:'Medium',d:'#3b82f6'},3:{l:'High',d:'#f5
 const ST={to_do:{l:'To Do',d:'#94a3b8',bg:'#f1f5f9',tx:'#64748b'},in_progress:{l:'In Progress',d:'#3b82f6',bg:'#eff6ff',tx:'#2563eb'},under_review:{l:'Under Review',d:'#f59e0b',bg:'#fffbeb',tx:'#d97706'},completed:{l:'Completed',d:'#10b981',bg:'#f0fdf4',tx:'#059669'}};
 const ROLE={global_admin:{l:'Global Admin',tx:'#dc2626'},admin:{l:'Admin',tx:'#ea580c'},co_admin:{l:'Co-Admin',tx:'#2563eb'},team_member:{l:'Member',tx:'#64748b'},support:{l:'Support',tx:'#7c3aed'}};
 const SCOL={active:'#10b981',on_hold:'#f59e0b',completed:'#6366f1',archived:'#94a3b8'};
-const ALB={created:'Created task',status_changed:'Changed status',comment_added:'Added comment',daily_update:'Daily update posted',attachment_added:'Added attachment',reassigned:'Reassigned task'};
+const ALB={created:'Created task',status_changed:'Changed status',comment_added:'Added comment',daily_update:'Daily update posted',attachment_added:'Added attachment',reassigned:'Reassigned task',time_changed:'Changed logged time'};
+// [LOGIC] show names, not ids, in History (reassign showed raw user ids)
+const albVal=(log,v,users)=>{if(log.fieldChanged==='assignedTo'){const u=(users||[]).find(x=>x.id===v);return u?u.fullName:'Unassigned';}if(log.fieldChanged==='department'){const d=DEPARTMENTS.find(x=>x.id===v);return d?d.name:(v||'none');}return (ST[v]&&ST[v].l)||v;};
 const PST={done:{bg:'#f0fdf4',tx:'#059669',d:'#10b981'},in_progress:{bg:'#fffbeb',tx:'#d97706',d:'#f59e0b'},pending:{bg:'#f8fafc',tx:'#94a3b8',d:'#e2e8f0'}};
 
 // NEXT STATUS per role:
@@ -1438,6 +1448,8 @@ const TaskTimeTab=({task,user,upd})=>{
   const [hours,setHours]=useState('');
   const [minutes,setMinutes]=useState('');
   const [note,setNote]=useState('');
+  const [logDay,setLogDay]=useState(()=>localDay()); // [LOGIC] can log up to 7 days back (Bassem 2026-11-07)
+  const minLogDay=(()=>{const d=new Date();d.setDate(d.getDate()-7);return localDay(d);})();
   const [editId,setEditId]=useState(null);
   const [editH,setEditH]=useState('');
   const [editM,setEditM]=useState('');
@@ -1455,7 +1467,7 @@ const TaskTimeTab=({task,user,upd})=>{
     if(h===0&&m===0)return;
     const entry={
       id:uid(),
-      date:localDay(),
+      date:(logDay>=minLogDay&&logDay<=localDay())?logDay:localDay(),
       hours:h,
       minutes:m,
       note:note.trim(),
@@ -1463,14 +1475,21 @@ const TaskTimeTab=({task,user,upd})=>{
       createdAt:new Date().toISOString()
     };
     upd({...task,timeLog:[...timeLog,entry]});
-    setHours('');setMinutes('');setNote('');
+    setHours('');setMinutes('');setNote('');setLogDay(localDay());
   };
 
-  const deleteEntry=(id)=>{if(!isReviewed)upd({...task,timeLog:timeLog.filter(e=>e.id!==id)});};
+  // [LOGIC] only the person who logged the time (or Global Admin / Admin) can change it, and every change goes to History
+  const {users:ttUsers}=useCtx();
+  const canTouch=e=>(e.loggedBy||task.assignedTo)===user.id||user.role==='global_admin'||user.role==='admin';
+  const ttName=e=>{const u=(ttUsers||[]).find(x=>x.id===(e.loggedBy||task.assignedTo));return u?u.fullName.split(' ')[0]:'';};
+  const ttLog=(e,nv)=>({id:uid(),performedBy:user.id,action:'time_changed',fieldChanged:'timeLog',oldValue:e.date+' '+e.hours+'h '+(e.minutes||0)+'m ('+ttName(e)+')',newValue:nv,performedAt:T()});
+  const deleteEntry=(id)=>{const e=timeLog.find(x=>x.id===id);if(isReviewed||!e||!canTouch(e))return;
+    upd({...task,timeLog:timeLog.filter(x=>x.id!==id),auditLog:[...(task.auditLog||[]),ttLog(e,'deleted')]});};
 
   const saveEdit=(id)=>{
-    if(isReviewed)return;
-    upd({...task,timeLog:timeLog.map(e=>e.id===id?{...e,hours:parseInt(editH)||0,minutes:parseInt(editM)||0}:e)});
+    const e=timeLog.find(x=>x.id===id);if(isReviewed||!e||!canTouch(e))return;
+    const h=Math.min(24,Math.max(0,parseInt(editH)||0)),m=Math.min(59,Math.max(0,parseInt(editM)||0));
+    upd({...task,timeLog:timeLog.map(x=>x.id===id?{...x,hours:h,minutes:m}:x),auditLog:[...(task.auditLog||[]),ttLog(e,h+'h '+m+'m')]});
     setEditId(null);
   };
 
@@ -1497,6 +1516,10 @@ const TaskTimeTab=({task,user,upd})=>{
     !isReviewed&&React.createElement('div',{className:'cd',style:{padding:'16px 18px',marginBottom:16}},
       React.createElement('div',{style:{fontSize:12,fontWeight:700,color:'var(--t3)',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:12}},'➕ Log Time'),
       React.createElement('div',{style:{display:'flex',gap:10,alignItems:'flex-end',flexWrap:'wrap'}},
+        React.createElement('div',{style:{flex:'0 0 150px'}},
+          React.createElement('label',{style:{fontSize:11,fontWeight:700,color:'var(--t3)',display:'block',marginBottom:4}},'DATE'),
+          React.createElement('input',{className:'ip',type:'date',value:logDay,min:minLogDay,max:localDay(),onChange:e=>{const v=e.target.value;if(v&&v>=minLogDay&&v<=localDay())setLogDay(v);},title:'Today or up to 7 days back',style:{fontWeight:600}})
+        ),
         React.createElement('div',{style:{flex:'0 0 100px'}},
           React.createElement('label',{style:{fontSize:11,fontWeight:700,color:'var(--t3)',display:'block',marginBottom:4}},'HOURS'),
           React.createElement('input',{className:'ip',type:'number',min:0,max:24,placeholder:'0',value:hours,onChange:e=>setHours(e.target.value),style:{textAlign:'center',fontWeight:700,fontSize:16}})
@@ -1542,8 +1565,8 @@ const TaskTimeTab=({task,user,upd})=>{
               isEditing
                 ? React.createElement('input',{className:'ip',type:'number',min:0,max:59,value:editM,onChange:ev=>setEditM(ev.target.value),style:{textAlign:'center',padding:'4px',fontSize:13}})
                 : React.createElement('span',{style:{fontSize:13,textAlign:'center',color:'var(--t2)'}},e.minutes+'m'),
-              React.createElement('span',{style:{fontSize:12,color:'var(--t3)',fontStyle:e.note?'normal':'italic'}},e.note||'—'),
-              !isReviewed&&React.createElement('div',{style:{display:'flex',gap:4}},
+              React.createElement('span',{style:{fontSize:12,color:'var(--t3)',fontStyle:e.note?'normal':'italic'}},React.createElement('b',{style:{color:'var(--t2)',fontStyle:'normal'}},ttName(e)),ttName(e)?' · ':'',e.note||'—'),
+              (!isReviewed&&canTouch(e))?React.createElement('div',{style:{display:'flex',gap:4}},
                 isEditing
                   ? React.createElement(React.Fragment,null,
                       React.createElement('button',{onClick:()=>saveEdit(e.id),style:{fontSize:11,padding:'3px 8px',background:'#10b981',color:'#fff',border:'none',borderRadius:5,cursor:'pointer',fontWeight:700}},'✓'),
@@ -1553,7 +1576,7 @@ const TaskTimeTab=({task,user,upd})=>{
                       React.createElement('button',{onClick:()=>{setEditId(e.id);setEditH(String(e.hours));setEditM(String(e.minutes||0));},style:{fontSize:11,padding:'3px 8px',background:'var(--bg)',color:'var(--t3)',border:'1px solid var(--bdr)',borderRadius:5,cursor:'pointer'}},'✏️'),
                       React.createElement('button',{onClick:()=>deleteEntry(e.id),style:{fontSize:11,padding:'3px 8px',background:'#fef2f2',color:'#dc2626',border:'1px solid #fecaca',borderRadius:5,cursor:'pointer'}},'🗑')
                     )
-              )
+              ):React.createElement('span',null)
             );
           })
         )
@@ -1586,7 +1609,8 @@ const TaskPanel=({task:init,onClose,onUpdate,user})=>{
   const chgSt=ns=>{
     const now=T();
     const log={id:uid(),performedBy:user.id,action:'status_changed',fieldChanged:'status',oldValue:task.status||'',newValue:ns,performedAt:now};
-    upd({...task,status:ns,auditLog:[...(task.auditLog||[]),log],completedAt:ns==='completed'?now:(task.completedAt||null)});
+    // [LOGIC] reopening clears the completion date and the supervisor review (a reopened task is not "done & reviewed")
+    upd({...task,status:ns,auditLog:[...(task.auditLog||[]),log],completedAt:ns==='completed'?now:null,supervisorReview:ns==='completed'?(task.supervisorReview||null):null});
     const soundEnabled=localStorage.getItem('ncsflow_sound')!=='0';
     if(soundEnabled){if(ns==='completed')playSound('complete');else playSound('notify');}
     sendEmailNotif({event:'status',taskId:task.id,taskTitle:task.title||'',department:task.department||'',assignedTo:task.assignedTo||'',isTicket:!!task.isTicket,oldStatus:ST[task.status]?.l||task.status||'',newStatus:ST[ns]?.l||ns,actorId:user.id});
@@ -1915,7 +1939,7 @@ const TaskPanel=({task:init,onClose,onUpdate,user})=>{
             React.createElement('div',{style:{display:'flex',flexDirection:'column',alignItems:'center'}},React.createElement(Av,{user:actor,sz:'s'}),i<arr.length-1&&React.createElement('div',{style:{width:1,flex:1,background:'var(--bdr)',marginTop:4}})),
             React.createElement('div',{style:{paddingTop:2}},
               React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}},React.createElement('span',{style:{fontSize:13,fontWeight:700}},actor?.fullName),React.createElement('span',{style:{fontSize:11.5,color:'var(--t3)'}},fmtDT(log.performedAt))),
-              React.createElement('div',{style:{fontSize:12.5,color:'var(--t2)',marginTop:3}},ALB[log.action]||log.action,log.oldValue&&log.newValue&&React.createElement('span',null,' · ',React.createElement('span',{style:{textDecoration:'line-through',color:'var(--t3)'}},ST[log.oldValue]?.l||log.oldValue),' → ',React.createElement('span',{style:{color:'var(--or)',fontWeight:600}},ST[log.newValue]?.l||log.newValue)))
+              React.createElement('div',{style:{fontSize:12.5,color:'var(--t2)',marginTop:3}},ALB[log.action]||String(log.action||'').replace(/_/g,' '),(log.oldValue||log.newValue)&&React.createElement('span',null,' · ',React.createElement('span',{style:{textDecoration:'line-through',color:'var(--t3)'}},albVal(log,log.oldValue,users)),' → ',React.createElement('span',{style:{color:'var(--or)',fontWeight:600}},albVal(log,log.newValue,users))))
             )
           );}),
           (!task.auditLog||task.auditLog.length===0)&&React.createElement('div',{style:{textAlign:'center',padding:'28px 0',color:'var(--t3)',fontSize:13}},'No history yet.')
@@ -2736,8 +2760,9 @@ const TopNav=({screen,setScreen,user,onLogout,activeDept,setActiveDept,children,
     const t=setTimeout(()=>document.addEventListener('click',close),0);
     return()=>{clearTimeout(t);window.removeEventListener('resize',close);window.removeEventListener('keydown',onKey);document.removeEventListener('click',close);};
   },[menu]);
-  const openCount=tasks.filter(t=>t.status!=='completed'&&(!activeDept||t.department===activeDept)).length;
-  const projCount=projects.filter(p=>p.status!=='archived').length;
+  const _hv=new Set(getVisibleProjects(user,projects,activeDept||'').map(p=>p.id));
+  const openCount=tasks.filter(t=>t.status!=='completed'&&(_hv.has(t.projectId)||t.assignedTo===user.id)&&(user.role==='team_member'||user.role==='support'?(t.assignedTo===user.id||t.createdBy===user.id):true)&&(activeDept?t.department===activeDept:deptAll(user,t))).length;
+  const projCount=getVisibleProjects(user,projects,activeDept||'').filter(p=>p.status!=='archived').length; // [DEPT] only what this user can see
   const groupOn=list=>list.some(n=>n.id===screen);
   const tab=(n)=>React.createElement('button',{key:n.id,className:'ffh-tab'+(screen===n.id?' on':''),onClick:()=>go(n.id)},
     React.createElement('span',{className:'e'},FF_EMOJI[n.id]||'•'),n.l);
@@ -3010,9 +3035,10 @@ const Topbar=({user,onMenu,activeDept='',onGoToPwResets,onGoToTasks,onOpenTask,o
   const _vpids=new Set(getVisibleProjects(user,projects,activeDept||'').map(p=>p.id));
   const mine=(user.role==='team_member'||user.role==='support'?tasks.filter(t=>t.createdBy===user.id||t.assignedTo===user.id):tasks).filter(t=>{
     if(t.status==='completed')return false;
-    if(!_vpids.has(t.projectId))return false;
+    if(!_vpids.has(t.projectId)&&t.assignedTo!==user.id)return false; // [DEPT] your own task always shows, even in a project outside your departments
     if(user.role==='support')return true;
     if(activeDept&&(!t.department||t.department!==activeDept))return false;
+    if(!activeDept&&!deptAll(user,t))return false;
     return true;
   });
   const als=mine.filter(t=>['ov','td'].includes(dStat(t.dueDate,t.status)));
@@ -3021,7 +3047,7 @@ const Topbar=({user,onMenu,activeDept='',onGoToPwResets,onGoToTasks,onOpenTask,o
   const myNoComment=tasks.filter(t=>{
     if(t.status==='completed')return false;
     if(t.assignedTo!==user.id)return false;
-    const hasComment=(t.comments||[]).some(c=>c.createdAt&&c.createdAt.startsWith(todayStr));
+    const hasComment=(t.comments||[]).some(c=>c.createdAt&&localDay(new Date(c.createdAt))===todayStr);
     return !hasComment;
   }).length;
 
@@ -3095,13 +3121,14 @@ const Dashboard=({user,setScreen,setSelTask,activeDept=''})=>{
   const _vpids=new Set(getVisibleProjects(user,projects,activeDept||'').map(p=>p.id));
   const mine=(user.role==='team_member'||user.role==='support'?tasks.filter(t=>t.createdBy===user.id||t.assignedTo===user.id):tasks).filter(t=>{
     if(t.status==='completed')return false;
-    if(!_vpids.has(t.projectId))return false;
+    if(!_vpids.has(t.projectId)&&t.assignedTo!==user.id)return false; // [DEPT] your own task always shows, even in a project outside your departments
     // Support sees ALL their tickets regardless of dept
     if(user.role==='support')return true;
     // If dept selected: task must explicitly belong to that dept
     if(activeDept){
       if(!t.department||t.department!==activeDept)return false;
     }
+    if(!activeDept&&!deptAll(user,t))return false;
     return true;
   });
   const cnt={to_do:0,in_progress:0,under_review:0,completed:0};mine.forEach(t=>cnt[t.status]=(cnt[t.status]||0)+1);
@@ -3110,7 +3137,8 @@ const Dashboard=({user,setScreen,setSelTask,activeDept=''})=>{
    cnt.completed=(user.role==='team_member'||user.role==='support'?tasks.filter(t=>t.createdBy===user.id||t.assignedTo===user.id):tasks).filter(t=>t.status==='completed'&&_vpids.has(t.projectId)&&(user.role==='support'||!activeDept||t.department===activeDept)&&new Date(t.completedAt||t.updatedAt||0)>=m0).length;}
   const ov=mine.filter(t=>dStat(t.dueDate,t.status)==='ov');
   const td=mine.filter(t=>dStat(t.dueDate,t.status)==='td');
-  const pendingDaily=mine.filter(t=>t.status==='in_progress'&&t.assignedTo===user.id&&!(t.dailyComments||{})[todayKey()]);
+  // [LOGIC] same rule as the "tasks pending" button: every open task of mine with no comment today (Bassem 2026-11-07: long tasks need a daily update)
+  const pendingDaily=tasks.filter(t=>t.status!=='completed'&&t.assignedTo===user.id&&!(t.dailyComments||{})[todayKey()]&&!(t.comments||[]).some(c=>c.createdAt&&localDay(new Date(c.createdAt))===todayKey()));
   const rec=[...mine].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)).slice(0,6);
   const BARS=['#94a3b8','#3b82f6','#f59e0b','#10b981'];
   return React.createElement('div',{className:'sc fi'},
@@ -3126,7 +3154,7 @@ const Dashboard=({user,setScreen,setSelTask,activeDept=''})=>{
       ),
       React.createElement('div',{className:'cd',style:{padding:24}},
         React.createElement('div',{style:{fontFamily:'var(--fd)',fontSize:15,fontWeight:800,marginBottom:16}},'Active Projects'),
-        getVisibleProjects(user,projects,activeDept).filter(p=>p.status==='active').map(p=>{const pt=tasks.filter(t=>t.projectId===p.id&&(!activeDept||!t.department||t.department===activeDept));const dn=pt.filter(t=>t.status==='completed').length;const pct=pt.length?Math.round(dn/pt.length*100):0;return React.createElement('div',{key:p.id,style:{marginBottom:18}},React.createElement('div',{style:{display:'flex',justifyContent:'space-between',marginBottom:5}},React.createElement('span',{style:{fontSize:12.5,fontWeight:700}},p.name.split('—')[0].trim()),React.createElement('span',{style:{fontSize:12,color:'var(--t3)',fontWeight:600}},pct,'%')),React.createElement('div',{className:'prb'},React.createElement('div',{className:'prf',style:{width:`${pct}%`}})),React.createElement('div',{style:{fontSize:11,color:'var(--t3)'}},pt.length,' tasks'))})
+        getVisibleProjects(user,projects,activeDept).filter(p=>p.status==='active').map(p=>{const pt=tasks.filter(t=>t.projectId===p.id&&(activeDept?(!t.department||t.department===activeDept):deptAll(user,t)));const dn=pt.filter(t=>t.status==='completed').length;const pct=pt.length?Math.round(dn/pt.length*100):0;return React.createElement('div',{key:p.id,style:{marginBottom:18}},React.createElement('div',{style:{display:'flex',justifyContent:'space-between',marginBottom:5}},React.createElement('span',{style:{fontSize:12.5,fontWeight:700}},p.name.split('—')[0].trim()),React.createElement('span',{style:{fontSize:12,color:'var(--t3)',fontWeight:600}},pct,'%')),React.createElement('div',{className:'prb'},React.createElement('div',{className:'prf',style:{width:`${pct}%`}})),React.createElement('div',{style:{fontSize:11,color:'var(--t3)'}},pt.length,' tasks'))})
       )
     )
   );
@@ -3309,7 +3337,11 @@ const MeetingsScreen=({user,activeDept=''})=>{
     setAttendModal(null);setActualH('');setActualM('');
   };
 
-  const deleteMeeting=(id)=>saveMeetings(meetings.filter(m=>m.id!==id));
+  // [LOGIC] ask first; an upcoming meeting whose invite was emailed is canceled instead, so attendees' calendars get the cancellation
+  const deleteMeeting=(id)=>{const m=meetings.find(x=>x.id===id);if(!m)return;
+    if(m.invitedAt&&!isCanceled(m)&&!isPast(m)){if(window.confirm('The invite for "'+(m.title||'this meeting')+'" was emailed to the attendees.\n\nCancel it instead? They will get a cancellation and it is removed from their calendars.'))cancelMeeting(id);return;}
+    if(!window.confirm('Delete "'+(m.title||'this meeting')+'"? This cannot be undone.'))return;
+    saveMeetings(meetings.filter(x=>x.id!==id));};
 
   // Cancel meeting — keeps record but marks as canceled
   const cancelMeeting=(id)=>{
@@ -4005,7 +4037,7 @@ const AllEmployeeHoursScreen=({user})=>{
     }).forEach(m=>{
       const att=(m.attendance||{})[uid];
       if(att)mins+=(att.actualHours||0)*60+(att.actualMinutes||0);
-      else{const[sh,sm]=(m.startTime||'00:00').split(':').map(Number);const[eh,em]=(m.endTime||'00:00').split(':').map(Number);mins+=Math.max(0,(eh*60+em)-(sh*60+sm));}
+      else if(mtgEnded(m)){const[sh,sm]=(m.startTime||'00:00').split(':').map(Number);const[eh,em]=(m.endTime||'00:00').split(':').map(Number);mins+=Math.max(0,(eh*60+em)-(sh*60+sm));}
     });
     return mins;
   };
@@ -4013,11 +4045,11 @@ const AllEmployeeHoursScreen=({user})=>{
   const getTaskMins=(uid,deptId)=>{
     let mins=0;
     tasks.filter(t=>{
-      if(t.assignedTo!==uid||t.status==='deleted')return false;
+      if(!workedOn(t,uid)||t.status==='deleted')return false;
       if(t.department)return t.department===deptId;
       return true;
     }).forEach(t=>{
-      (t.timeLog||[]).forEach(e=>{if(inBounds(e.date||e.loggedAt||e.createdAt))mins+=(e.hours||0)*60+(e.minutes||0);});
+      (t.timeLog||[]).forEach(e=>{if(logOwner(e,t)===uid&&inBounds(e.date||e.loggedAt||e.createdAt))mins+=(e.hours||0)*60+(e.minutes||0);});
     });
     return mins;
   };
@@ -4210,8 +4242,8 @@ const EmployeeHoursScreen=({user,activeDept=''})=>{
       if(att){
         // Use actual logged time if available
         mins+=(att.actualHours||0)*60+(att.actualMinutes||0);
-      } else {
-        // Fall back to planned duration
+      } else if(mtgEnded(m)) {
+        // Fall back to planned duration (only once the meeting is over)
         const [sh,sm]=(m.startTime||'00:00').split(':').map(Number);
         const [eh,em]=(m.endTime||'00:00').split(':').map(Number);
         mins+=Math.max(0,(eh*60+em)-(sh*60+sm));
@@ -4223,14 +4255,14 @@ const EmployeeHoursScreen=({user,activeDept=''})=>{
   const getEmpTaskMins=(uid)=>{
     let mins=0;
     tasks.filter(t=>{
-      if(t.assignedTo!==uid||t.status==='deleted')return false;
+      if(!workedOn(t,uid)||t.status==='deleted')return false;
       if(!activeDept)return true;
       // Check task.department first, then fall back to project departments
       if(t.department)return t.department===activeDept;
       return true; // include tasks without dept — they show everywhere
     }).forEach(t=>{
       (t.timeLog||[]).forEach(e=>{
-        if(inBounds(e.date||e.loggedAt||e.createdAt))
+        if(logOwner(e,t)===uid&&inBounds(e.date||e.loggedAt||e.createdAt))
           mins+=(e.hours||0)*60+(e.minutes||0);
       });
     });
@@ -4488,8 +4520,8 @@ const ProjectCostScreen=({user,activeDept=''})=>{
     // Task hours per user per project
     const getUserProjTaskMins=(uid,projId)=>{
       let mins=0;
-      tasks.filter(t=>t.assignedTo===uid&&t.projectId===projId&&t.status!=='deleted').forEach(t=>{
-        (t.timeLog||[]).forEach(e=>{if(inBounds(e.date||e.loggedAt||e.createdAt))mins+=(e.hours||0)*60+(e.minutes||0);});
+      tasks.filter(t=>workedOn(t,uid)&&t.projectId===projId&&t.status!=='deleted').forEach(t=>{
+        (t.timeLog||[]).forEach(e=>{if(logOwner(e,t)===uid&&inBounds(e.date||e.loggedAt||e.createdAt))mins+=(e.hours||0)*60+(e.minutes||0);});
       });
       return mins;
     };
@@ -4500,7 +4532,7 @@ const ProjectCostScreen=({user,activeDept=''})=>{
       activeMeetings.filter(m=>m.projectId===projId&&(m.attendees||[]).includes(uid)).forEach(m=>{
         const att=(m.attendance||{})[uid];
         if(att)mins+=(att.actualHours||0)*60+(att.actualMinutes||0);
-        else{const[sh,sm]=(m.startTime||'00:00').split(':').map(Number);const[eh,em]=(m.endTime||'00:00').split(':').map(Number);mins+=Math.max(0,(eh*60+em)-(sh*60+sm));}
+        else if(mtgEnded(m)){const[sh,sm]=(m.startTime||'00:00').split(':').map(Number);const[eh,em]=(m.endTime||'00:00').split(':').map(Number);mins+=Math.max(0,(eh*60+em)-(sh*60+sm));}
       });
       return mins;
     };
@@ -4961,8 +4993,9 @@ const SupervisorReviewScreen=({user,setSelTask,activeDept=''})=>{
   const _vpids=new Set(getVisibleProjects(user,projects,activeDept||'').map(p=>p.id));
   const mine=tasks.filter(t=>{
     if(t.status!=='completed')return false;
-    if(!_vpids.has(t.projectId))return false;
+    if(!_vpids.has(t.projectId)&&t.assignedTo!==user.id)return false; // [DEPT] your own task always shows, even in a project outside your departments
     if(activeDept&&(!t.department||t.department!==activeDept))return false;
+    if(!activeDept&&!deptAll(user,t))return false;
     return true;
   });
   const filt=mine.filter(t=>filter==='not_reviewed'?!t.supervisorReview:filter==='reviewed'?!!t.supervisorReview:true)
@@ -5005,7 +5038,7 @@ const SupervisorReviewScreen=({user,setSelTask,activeDept=''})=>{
           const isOverdue=daysLeft!==null&&daysLeft<0;
           const st=ST[t.status];
           const todayStr=localDay();
-          const hasCommentToday=(t.comments||[]).some(c=>c.createdAt&&c.createdAt.startsWith(todayStr));
+          const hasCommentToday=(t.comments||[]).some(c=>c.createdAt&&localDay(new Date(c.createdAt))===todayStr);
           const reviewer=t.supervisorReview?users.find(u=>u.id===t.supervisorReview.reviewedBy):null;
           return React.createElement('div',{key:t.id,className:'cd',style:{padding:'14px 18px',marginBottom:10,cursor:'pointer',borderColor:t.supervisorReview?'#10b981':'var(--bdr)',borderWidth:t.supervisorReview?2:1.5},onClick:()=>setSelTask(t)},
             React.createElement('div',{style:{display:'flex',alignItems:'center',gap:12}},
@@ -5052,9 +5085,10 @@ const Tasks=({user,selTask,setSelTask,initialProjFilter,clearProjFilter,activeDe
   const _vpids=new Set(getVisibleProjects(user,projects,activeDept||'').map(p=>p.id));
   const mine=(user.role==='team_member'||user.role==='support'?tasks.filter(t=>t.createdBy===user.id||t.assignedTo===user.id):tasks).filter(t=>{
     if(t.status==='completed')return false;
-    if(!_vpids.has(t.projectId))return false;
+    if(!_vpids.has(t.projectId)&&t.assignedTo!==user.id)return false; // [DEPT] your own task always shows, even in a project outside your departments
     if(user.role==='support')return true;
     if(activeDept&&(!t.department||t.department!==activeDept))return false;
+    if(!activeDept&&!deptAll(user,t))return false;
     return true;
   });
   const filt=mine.filter(t=>{
@@ -5068,7 +5102,7 @@ const Tasks=({user,selTask,setSelTask,initialProjFilter,clearProjFilter,activeDe
     if(f.unassigned&&t.assignedTo)return false;
     if(f.noComment){
       const today=localDay();
-      const hasCommentToday=(t.comments||[]).some(c=>c.createdAt&&c.createdAt.startsWith(today));
+      const hasCommentToday=(t.comments||[]).some(c=>c.createdAt&&localDay(new Date(c.createdAt))===today);
       if(hasCommentToday)return false;
     }
     if(f.phase){const prj=projects.find(p=>p.id===t.projectId);if(!prj)return false;const ph=(prj.phases||[]).find(ph=>String(ph.phaseId)===String(f.phase));if(!ph||ph.status==='pending')return false;}
@@ -5113,7 +5147,7 @@ const Tasks=({user,selTask,setSelTask,initialProjFilter,clearProjFilter,activeDe
       const dept=DEPARTMENTS.find(d=>d.id===t.department);
       const lastCmt=(t.comments||[]).slice(-1)[0];
       const today=localDay();
-      const todayCmt=(t.comments||[]).filter(c=>c.createdAt&&c.createdAt.startsWith(today)).slice(-1)[0];
+      const todayCmt=(t.comments||[]).filter(c=>c.createdAt&&localDay(new Date(c.createdAt))===today).slice(-1)[0];
       return [
         '"'+(t.title||'').replace(/"/g,'""')+'"',
         ST[t.status]?.l||t.status,
@@ -5297,8 +5331,8 @@ const Tasks=({user,selTask,setSelTask,initialProjFilter,clearProjFilter,activeDe
             const needsDaily=t.status==='in_progress'&&t.assignedTo===user.id&&!(t.dailyComments||{})[todayKey()];
             const today=todayKey();
             const allCmts=t.comments||[];
-            const todayCmt=allCmts.filter(c=>c.isDailyUpdate&&c.createdAt&&c.createdAt.startsWith(today)).slice(-1)[0];
-            const todayRegCmt=allCmts.filter(c=>!c.isDailyUpdate&&c.createdAt&&c.createdAt.startsWith(today)).slice(-1)[0];
+            const todayCmt=allCmts.filter(c=>c.isDailyUpdate&&c.createdAt&&localDay(new Date(c.createdAt))===today).slice(-1)[0];
+            const todayRegCmt=allCmts.filter(c=>!c.isDailyUpdate&&c.createdAt&&localDay(new Date(c.createdAt))===today).slice(-1)[0];
             const todayAnyCmt=todayCmt||todayRegCmt;
             const lastCmtText=todayAnyCmt?todayAnyCmt.body:'';
             return React.createElement('div',{key:t.id,style:{marginBottom:6}},
@@ -5885,7 +5919,7 @@ const BackupCard=()=>{
 
 // USERS
 const Users=({curUser})=>{
-  const {users,setUsers}=useCtx();
+  const {users,setUsers,tasks}=useCtx();
   const [showNew,setShowNew]=useState(false);
   const [form,setForm]=useState({name:'',email:'',username:'',role:'team_member',pw:'',depts:[]});
   const [filterStatus,setFilterStatus]=useState('active');
@@ -6021,7 +6055,10 @@ const Users=({curUser})=>{
           React.createElement('td',null,
                 React.createElement('div',{style:{display:'flex',gap:6}},
                   React.createElement(Btn,{v:'se',sz:'sm',ch:React.createElement(React.Fragment,null,I.edit,' Edit'),onClick:()=>openEdit(u)}),
-                  u.id!==curUser.id&&React.createElement(Btn,{v:u.isActive?'da':'gh',sz:'sm',ch:u.isActive?'Deactivate':'Activate',onClick:()=>setUsers(prev=>prev.map(x=>x.id===u.id?{...x,isActive:!x.isActive}:x))})
+                  u.id!==curUser.id&&React.createElement(Btn,{v:u.isActive?'da':'gh',sz:'sm',ch:u.isActive?'Deactivate':'Activate',onClick:()=>{ // [LOGIC] warn before deactivating someone who still has open tasks
+                    if(u.isActive){const open=(tasks||[]).filter(t=>t.assignedTo===u.id&&t.status!=='completed').length;
+                      if(!window.confirm(open?(u.fullName+' still has '+open+' open task'+(open>1?'s':'')+'. They will stay assigned to an inactive user until you reassign them.\n\nDeactivate anyway?'):('Deactivate '+u.fullName+'?')))return;}
+                    setUsers(prev=>prev.map(x=>x.id===u.id?{...x,isActive:!x.isActive}:x));}})
                 )
               )
         )))
@@ -6127,6 +6164,7 @@ const CompletedScreen=({user,activeDept=''})=>{
     if(t.status!=='completed')return false;
     if(!_cpids.has(t.projectId))return false;
     if(activeDept&&(!t.department||t.department!==activeDept))return false;
+    if(!activeDept&&!deptAll(user,t))return false;
     if(user.role==='team_member')return t.assignedTo===user.id;
     if(user.role==='co_admin')return t.assignedTo===user.id||true; // co_admin sees all in visible projects
     return true;
@@ -6406,8 +6444,8 @@ const DeptOverviewScreen=({user,setScreen,onOpenLCS,activeDept=''})=>{
         else if(prev&&prev.completionDate)daysInPhase=Math.floor((new Date()-new Date(prev.completionDate))/86400000);
       }
     }
-    const openTasks=tasks.filter(t=>t.projectId===p.id&&t.status!=='completed'&&(!activeDept||!t.department||t.department===activeDept)).length;
-    const overdueTasks=tasks.filter(t=>t.projectId===p.id&&t.status!=='completed'&&(!activeDept||!t.department||t.department===activeDept)&&t.dueDate&&new Date(t.dueDate)<new Date(new Date().setHours(0,0,0,0))).length;
+    const openTasks=tasks.filter(t=>t.projectId===p.id&&t.status!=='completed'&&(activeDept?(!t.department||t.department===activeDept):deptAll(user,t))).length;
+    const overdueTasks=tasks.filter(t=>t.projectId===p.id&&t.status!=='completed'&&(activeDept?(!t.department||t.department===activeDept):deptAll(user,t))&&t.dueDate&&new Date(t.dueDate)<new Date(new Date().setHours(0,0,0,0))).length;
     return{done,pct,wipLCS,mainPhase,mainCol,daysInPhase,openTasks,overdueTasks};
   };
 
@@ -6431,7 +6469,7 @@ const DeptOverviewScreen=({user,setScreen,onOpenLCS,activeDept=''})=>{
         {lbl:'Total Projects',val:visProjects.length,col:dept?dept.color:'#6366f1'},
         {lbl:'Active',val:visProjects.filter(p=>p.status==='active').length,col:'#10b981'},
         {lbl:'On Hold',val:visProjects.filter(p=>p.status==='on_hold').length,col:'#f59e0b'},
-        {lbl:'Open Tasks',val:tasks.filter(t=>t.status!=='completed'&&visProjects.some(p=>p.id===t.projectId)&&(!activeDept||!t.department||t.department===activeDept)).length,col:'#3b82f6'},
+        {lbl:'Open Tasks',val:tasks.filter(t=>t.status!=='completed'&&visProjects.some(p=>p.id===t.projectId)&&(activeDept?(!t.department||t.department===activeDept):deptAll(user,t))).length,col:'#3b82f6'},
       ].map(s=>React.createElement('div',{key:s.lbl,className:'scd'},
         React.createElement('div',{className:'sl'},s.lbl),
         React.createElement('div',{className:'sv',style:{color:s.col}},s.val),
@@ -6543,7 +6581,7 @@ const DeptOverviewScreen=({user,setScreen,onOpenLCS,activeDept=''})=>{
               // Tasks list
               expandedTasks[p.id]&&React.createElement('div',{style:{padding:'0 18px 14px'}},
                 (()=>{
-                  const projTasks=tasks.filter(t=>t.projectId===p.id&&t.status!=='completed'&&(!activeDept||t.department===activeDept))
+                  const projTasks=tasks.filter(t=>t.projectId===p.id&&t.status!=='completed'&&(activeDept?t.department===activeDept:deptAll(user,t)))
                     .sort((a,b)=>{
                       // Sort: overdue first, then by due date
                       const da=a.dueDate?new Date(a.dueDate):new Date('2099-01-01');
@@ -6861,7 +6899,7 @@ const MyTicketsScreen=({user,setSelTask,activeDept=''})=>{
                   t.status==='completed'
                     ? React.createElement('div',{style:{fontSize:11,color:'#059669',fontWeight:700}},'✅ Closed')
                     : React.createElement('button',{
-                        onClick:e=>{e.stopPropagation();setTasks(prev=>prev.map(tk=>tk.id===t.id?{...tk,status:'completed',completedAt:new Date().toISOString()}:tk));},
+                        onClick:e=>{e.stopPropagation();const now=new Date().toISOString();setTasks(prev=>prev.map(tk=>tk.id===t.id?{...tk,status:'completed',completedAt:now,auditLog:[...(tk.auditLog||[]),{id:uid(),performedBy:user.id,action:'status_changed',fieldChanged:'status',oldValue:tk.status||'',newValue:'completed',performedAt:now}]}:tk));},
                         style:{fontSize:11,fontWeight:700,color:'#059669',background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:6,padding:'3px 10px',cursor:'pointer',fontFamily:'var(--fb)'}
                       },'✓ Close Ticket')
                 )
@@ -7204,7 +7242,7 @@ const RecurringTasksScreen=({user,activeDept=''})=>{
   useEffect(()=>dbOn(REC_PATH,v=>{setList(Object.values(v||{}).filter(x=>x&&x.id));setLoaded(true);},()=>setLoaded(true)),[]);
   const vis=getVisibleProjects(user,projects,activeDept);
   const visIds=new Set(vis.map(p=>p.id));
-  const shown=list.filter(t=>visIds.has(t.projectId)&&(!activeDept||t.department===activeDept)).sort((a,b)=>(a.title||'').localeCompare(b.title||''));
+  const shown=list.filter(t=>visIds.has(t.projectId)&&(activeDept?t.department===activeDept:deptAll(user,t))).sort((a,b)=>(a.title||'').localeCompare(b.title||''));
   const blank=()=>({id:'',title:'',description:'',projectId:'',department:activeDept||'',taskTypeId:'',assignedTo:'',priority:'2',freq:'monthly',day:'1',weekday:'0',startMonth:'0',dueDays:'5',checklistText:'',active:true});
   const flash=m=>{setMsg(m);setTimeout(()=>setMsg(''),3500);};
   const save=()=>{
@@ -7310,7 +7348,7 @@ const PerformanceScreen=({user,setSelTask,activeDept=''})=>{
   const [per,setPer]=useState('month');const [proj,setProj]=useState('');const [kind,setKind]=useState('');
   const [sortK,setSortK]=useState('done');
   const vis=getVisibleProjects(user,projects,activeDept);const visIds=new Set(vis.map(p=>p.id));
-  const scope=tasks.filter(t=>visIds.has(t.projectId)&&(!activeDept||t.department===activeDept)&&(!proj||t.projectId===proj)&&(!kind||(kind==='ticket'?!!t.isTicket:!t.isTicket)));
+  const scope=tasks.filter(t=>visIds.has(t.projectId)&&(activeDept?t.department===activeDept:deptAll(user,t))&&(!proj||t.projectId===proj)&&(!kind||(kind==='ticket'?!!t.isTicket:!t.isTicket)));
   const [from,to]=w3Range(per);
   const inPer=t=>{if(!t.completedAt)return false;const d=new Date(t.completedAt);return(!from||d>=from)&&(!to||d<to);};
   const done=scope.filter(t=>t.status==='completed'&&inPer(t));
@@ -7476,7 +7514,7 @@ const CalendarScreen=({user,setSelTask,activeDept=''})=>{
   const today=ymd(new Date());
   const inDept=(list,one)=>{if(!activeDept)return true;const d=list&&list.length?list:(one?[one]:[]);return !d.length||d.includes(activeDept);};
   const mine=t=>who==='all'?true:t.assignedTo===who;
-  const openTasks=(tasks||[]).filter(t=>t&&t.dueDate&&t.status!=='completed'&&!t.isTicket&&mine(t)&&(!activeDept||t.department===activeDept));
+  const openTasks=(tasks||[]).filter(t=>t&&t.dueDate&&t.status!=='completed'&&!t.isTicket&&mine(t)&&(activeDept?t.department===activeDept:deptAll(user,t)));
   const mtgs=meetings.filter(m=>m&&m.date&&m.status!=='canceled'&&inDept(m.departments,m.department)&&(who==='all'?true:(m.attendees||[]).includes(who)));
   const byDay={};
   const put=(d,k,x)=>{(byDay[d]=byDay[d]||{t:[],m:[]})[k].push(x);};
@@ -7560,7 +7598,7 @@ const CalendarScreen=({user,setSelTask,activeDept=''})=>{
 // ═══ END [CAL] ═══
 
 // Loading screen: a different wisdom each time (Bassem 2026-11-07)
-const FF_WISDOM=["من جدّ وجد، ومن زرع حصد","الوقت كالسيف، إن لم تقطعه قطعك","لا تؤجل عمل اليوم إلى الغد","قطرة فوق قطرة تصنع بحراً","العلم في الصغر كالنقش على الحجر","اطلبوا العلم من المهد إلى اللحد","الصبر مفتاح الفرج","من سار على الدرب وصل","يد واحدة لا تصفق","خير الكلام ما قلّ ودلّ","النجاح رحلة وليس محطة","التنظيم نصف الإنجاز","ابدأ صغيراً، وفكّر كبيراً","الجودة ليست صدفة، بل نتيجة جهد","كل إنجاز عظيم بدأ بخطوة صغيرة","الإتقان سر التميّز","اعمل بصمت، ودع نجاحك يتكلم","العقل السليم في الجسم السليم","الأفعال أعلى صوتاً من الأقوال","التعلّم لا يتوقف أبداً","الفرص لا تأتي، بل تُصنع","ما فات مات، وما هو آتٍ آت","إذا هبّت رياحك فاغتنمها","من راقب الناس مات همّاً","اسأل مجرّب ولا تسأل حكيم","على قدر أهل العزم تأتي العزائم","التكرار يعلّم الشطّار","خطوة بخطوة يُقطع الطريق الطويل","فريق واحد، هدف واحد","الدقة في الأرقام أمانة"];
+const FF_WISDOM=["Plan the work, then work the plan.","Quality is never an accident; it is the result of effort.","Done is better than perfect — but correct is better than done.","Small daily progress adds up to big results.","Clear tasks, clear minds.","Great things are done by a series of small things brought together.","What gets measured gets managed.","Teamwork makes the dream work.","Close the books on time, every time.","Accuracy builds trust.","Every number tells a story — make it the right one.","Focus on the client, and success will follow.","Deadlines are promises — keep them.","Communicate early, communicate often.","Progress, not perfection.","A good plan today beats a perfect plan tomorrow.","Own your tasks, own your results.","Excellence is a habit, not an act.","The secret of getting ahead is getting started.","Well begun is half done.","Simplify the process, amplify the results.","Reconcile today, relax tomorrow.","One team, one goal.","Document it — your future self will thank you.","Strong processes create strong companies.","Every task completed is a step closer to the goal.","Ask questions early; fix problems early.","Consistency beats intensity.","Details make the difference.","Deliver value, not just tasks."];
 const App=()=>{
   // Restore user from sessionStorage (survives tab duplicate & refresh)
   const [user,setUserRaw]=useState(()=>{
@@ -7891,7 +7929,7 @@ const App=()=>{
       React.createElement('div',{style:{fontFamily:'var(--fd)',fontWeight:800,fontSize:18,color:'#f5a623'}},'NCS Management')
     ),
     React.createElement('div',{className:'sp',style:{width:28,height:28,borderWidth:3}}),
-    React.createElement('div',{dir:'rtl',style:{fontSize:15,color:'var(--t3)',fontWeight:600,textAlign:'center',maxWidth:300,lineHeight:1.7,padding:'0 16px'}},wisdom),
+    React.createElement('div',{style:{fontSize:15,color:'var(--t3)',fontWeight:600,fontStyle:'italic',textAlign:'center',maxWidth:320,lineHeight:1.6,padding:'0 16px'}},'“'+wisdom+'”'),
     slowDb&&React.createElement('div',{style:{fontSize:12,color:'var(--t3)',textAlign:'center',maxWidth:260,lineHeight:1.6}},'Slow connection, still loading…',
       React.createElement('br'),
       React.createElement('button',{onClick:()=>location.reload(),style:{marginTop:10,background:'none',border:'1px solid #f5a62366',color:'#f5a623',borderRadius:10,padding:'6px 14px',cursor:'pointer',fontFamily:'var(--fb)'}},'Retry'))
